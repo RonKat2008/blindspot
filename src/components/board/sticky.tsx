@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion, useDragControls, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { reducedTransition, spring } from "@/lib/motion";
 import { STICKY_H, STICKY_W } from "./board-utils";
@@ -20,6 +20,9 @@ type StickyProps = {
   isDimmed?: boolean;
   isHighlighted?: boolean;
   isIsland?: boolean;
+  isShortlisted?: boolean;
+  /** Rendered instead of the note body (kind "assumption"). */
+  assumption?: React.ReactNode;
   canDrag: boolean;
   compact: boolean;
   onDrag: (id: string, dx: number, dy: number) => void;
@@ -40,6 +43,8 @@ export function Sticky({
   isDimmed,
   isHighlighted,
   isIsland,
+  isShortlisted,
+  assumption,
   canDrag,
   compact,
   onDrag,
@@ -49,6 +54,7 @@ export function Sticky({
 }: StickyProps) {
   const reduce = useReducedMotion();
   const dragged = useRef(false);
+  const controls = useDragControls();
 
   return (
     <motion.div
@@ -65,12 +71,18 @@ export function Sticky({
         isHighlighted && "outline-2 outline-offset-3 outline-solid outline-signal",
         isDimmed && "opacity-30",
       )}
-      style={{ width: STICKY_W, height: STICKY_H, background: color, zIndex: isHighlighted ? 6 : undefined }}
+      style={{ width: STICKY_W, height: STICKY_H, background: assumption ? "transparent" : color, zIndex: isHighlighted ? 6 : undefined }}
       initial={isFresh && !reduce ? { x: target.x, y: target.y + 24, rotate: target.rotate, scale: 0.6, opacity: 0 } : false}
       animate={{ x: target.x, y: target.y, rotate: target.rotate, scale: target.scale, opacity: isDimmed ? 0.3 : 1 }}
       transition={reduce ? reducedTransition : spring.gentle}
       drag={canDrag}
+      dragListener={false}
+      dragControls={controls}
       dragMomentum={false}
+      onPointerDown={(e) => {
+        if (!canDrag || (e.target as HTMLElement).closest("[data-link-handle]")) return;
+        controls.start(e);
+      }}
       whileDrag={reduce ? undefined : { scale: target.scale * 1.04, rotate: 0, zIndex: 20 }}
       onDragStart={() => {
         dragged.current = true;
@@ -88,7 +100,13 @@ export function Sticky({
       onFocus={() => onHover(id)}
       onBlur={() => onHover(null)}
     >
-      <p className={cn("overflow-hidden break-words", compact ? "line-clamp-3 text-[1.05rem]" : "line-clamp-4")}>{text}</p>
+      {assumption ? <div className="absolute inset-0 overflow-hidden [&>article]:h-full [&>article]:max-w-none">{assumption}</div> : null}
+      {isShortlisted ? (
+        <span aria-label="Shortlisted" className="absolute -top-2 -left-2 grid size-5 place-items-center rounded-full bg-accept text-[11px] text-paper-raised shadow-sm">
+          ★
+        </span>
+      ) : null}
+      <p className={cn("overflow-hidden break-words", assumption && "sr-only", compact ? "line-clamp-3 text-[1.05rem]" : "line-clamp-4")}>{text}</p>
       <div className="mt-auto flex items-center justify-between pt-1 text-[10px] tracking-wide text-ink-soft uppercase">
         <span className="flex min-w-0 items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap">
           {authorColor ? <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: authorColor }} /> : null}
@@ -105,6 +123,7 @@ export function Sticky({
       {!isPending && canDrag ? (
         <button
           type="button"
+          data-link-handle
           aria-label="Draw a connection from this note"
           title="Drag to another note to connect them"
           className="absolute top-1/2 -right-2.5 grid size-5 -translate-y-1/2 place-items-center rounded-full border border-ink/40 bg-paper-raised opacity-0 shadow-sm transition-opacity group-hover:opacity-100 focus-visible:opacity-100 max-sm:opacity-60"

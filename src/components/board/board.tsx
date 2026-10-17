@@ -32,6 +32,9 @@ import { BoardCoach, QuestionNote, type QuestionNoteData, RangeMeter, toNote } f
 import { ConnectionsLayer, LensGrid } from "./layers";
 import { DraftSticky, Sticky } from "./sticky";
 import { WrapUp } from "./wrap-up";
+import { AssumptionWriter, ConvergeDrawer, patchIdea } from "./extras";
+import { ReplayTimeline } from "@/components/replay/replay-timeline";
+import { AssumptionCard } from "@/components/assumption/assumption-card";
 
 type Pending = { tempId: string; text: string };
 type Draft = { x: number; y: number; text: string };
@@ -39,11 +42,15 @@ type Draft = { x: number; y: number; text: string };
 const POLL_MS = 5000;
 const ERR_ADD = "Couldn't reach the map. Your idea is safe — try again.";
 
+function usableWidth(width: number): number {
+  return width >= 1024 ? width - 400 : width;
+}
+
 function placeMissing(ideas: Idea[], positions: PosMap, width: number): PosMap {
   const missing = ideas.filter((i) => !positions[i.id]);
   if (!missing.length) return positions;
   const next = { ...positions };
-  for (const idea of missing) next[idea.id] = nextFreeSpot(Object.values(next), width);
+  for (const idea of missing) next[idea.id] = nextFreeSpot(Object.values(next), usableWidth(width));
   return next;
 }
 
@@ -51,7 +58,7 @@ function placeMissing(ideas: Idea[], positions: PosMap, width: number): PosMap {
 function autoLayout(ideas: Idea[], width: number): PosMap {
   const out: PosMap = {};
   for (const idea of ideas) {
-    const spot = nextFreeSpot(Object.values(out), width);
+    const spot = nextFreeSpot(Object.values(out), usableWidth(width));
     let h = 0;
     for (const ch of idea.id) h = (h * 33 + ch.charCodeAt(0)) >>> 0;
     out[idea.id] = { x: spot.x, y: spot.y, rot: ((h % 60) - 30) / 10 };
@@ -114,6 +121,10 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
   const [wrapOpen, setWrapOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [digestIds, setDigestIds] = useState<string[]>([]);
+  const [replayOn, setReplayOn] = useState(false);
+  const [replayFrame, setReplayFrame] = useState<{ ideas: Set<string>; questions: Set<string> } | null>(null);
+  const [convergeOn, setConvergeOn] = useState(false);
+  const [assumptionOpen, setAssumptionOpen] = useState(false);
   const scripted = Boolean(snapshot);
   const state = snapshot ? snapshot.state : stateRaw;
   const prompt = snapshot ? snapshot.state.session.prompt : promptRaw;
@@ -127,6 +138,7 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
   const lastMutation = useRef(0);
   const sessionRef = useRef<string | null>(initialId ?? null);
   const queuedRef = useRef<Pending[]>([]);
+  const suppressClick = useRef(false);
 
   // ---- measure the board viewport
   useEffect(() => {
@@ -237,7 +249,7 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
       freshRef.current.add(tempId);
       setPositions((p) => ({
         ...p,
-        [tempId]: at ? { ...at, rot: randomRot() } : nextFreeSpot(Object.values(p), viewportRef.current?.clientWidth ?? 1200),
+        [tempId]: at ? { ...at, rot: randomRot() } : nextFreeSpot(Object.values(p), usableWidth(viewportRef.current?.clientWidth ?? 1200)),
       }));
       setPending((list) => [...list, { tempId, text }]);
       if (coachStep === 1) setCoachStep(2);
@@ -289,7 +301,9 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
   }
 
   // ---- provocations
-  const current = state ? [...state.provocations].reverse().find((p) => p.status === "shown") ?? null : null;
+  const current = state
+    ? [...state.provocations].reverse().find((p) => p.status === "shown" && (!replayFrame || replayFrame.questions.has(p.id))) ?? null
+    : null;
   const textOf = useCallback((id: string) => state?.ideas.find((i) => i.id === id)?.text, [state]);
   const note: QuestionNoteData | null = localNote ?? (current ? toNote(current, textOf) : null);
 
@@ -308,7 +322,10 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
       setState((prev) =>
         prev ? { ...prev, provocations: prev.provocations.map((p) => (p.id === current.id ? { ...p, status } : p)) } : prev,
       );
-      if (status === "accepted") openDraftAtFreeSpot("");
+      if (status === "accepted") {
+        if (current.type === "assumption") setAssumptionOpen(true);
+        else openDraftAtFreeSpot("");
+      }
     } catch {
       toast("Couldn't save that. Try again.");
     } finally {
@@ -316,16 +333,54 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
     }
   }
 
+  async function toggleShortlist(ideaId: string, next: boolean) {
+    setState((prev) => (prev ? { ...prev, ideas: prev.ideas.map((i) => (i.id === ideaId ? { ...i, shortlisted: next } : i)) } : prev));
+    lastMutation.current = Date.now();
+    try {
+      await patchIdea(ideaId, { shortlisted: next });
+    } catch {
+      setState((prev) => (prev ? { ...prev, ideas: prev.ideas.map((i) => (i.id === ideaId ? { ...i, shortlisted: !next } : i)) } : prev));
+      toast("Couldn't save the shortlist. Try again.");
+    }
+  }
+
+  async function postAssumption(text: string) {
+    const sid = sessionRef.current;
+    if (!sid) return;
+    try {
+      const res = await api.addIdeas(sid, { texts: [text], source: "typed" });
+      const created = res.ideas[0];
+      if (created) await patchIdea(created.id, { kind: "assumption" });
+      lastMutation.current = Date.now();
+      applyState(await api.getState(sid));
+      setAssumptionOpen(false);
+    } catch {
+      toast(ERR_ADD);
+    }
+  }
+
+  const onReplayFrame = useCallback((ideaIds: string[], questionIds: string[]) => {
+    setReplayFrame((prev) => {
+      const same =
+        prev && prev.ideas.size === ideaIds.length && prev.questions.size === questionIds.length && ideaIds.every((id) => prev.ideas.has(id));
+      return same ? prev : { ideas: new Set(ideaIds), questions: new Set(questionIds) };
+    });
+  }, []);
+
   // ---- drafting
   function openDraftAtFreeSpot(initial: string) {
     if (lens) setLens(false);
     const vp = viewportRef.current;
-    const spot = nextFreeSpot(Object.values(positions), vp?.clientWidth ?? 1200, (vp?.scrollTop ?? 0) + 24);
+    const spot = nextFreeSpot(Object.values(positions), usableWidth(vp?.clientWidth ?? 1200), (vp?.scrollTop ?? 0) + 24);
     setDraft({ x: spot.x, y: spot.y, text: initial });
   }
 
   function onSurfaceClick(e: React.MouseEvent) {
     if (scripted) return;
+    if (suppressClick.current) {
+      suppressClick.current = false;
+      return;
+    }
     if (lens) {
       setQuad(null);
       return;
@@ -407,6 +462,10 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       setLinkDrag(null);
+      suppressClick.current = true;
+      window.setTimeout(() => {
+        suppressClick.current = false;
+      }, 300);
       const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest("[data-sticky-id]")?.getAttribute("data-sticky-id");
       if (!target || target === from || target.startsWith("tmp-") || from.startsWith("tmp-")) return;
       setLinks((list) =>
@@ -448,15 +507,22 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
 
   const claimed = new Set(Object.values(keyMap));
   type Item = { key: string; id: string; text: string; speaker?: string; authorColor?: string; isPending: boolean; idea?: Idea };
-  const items: Item[] = [
+  const allItems: Item[] = [
     ...ideas.map((i) => ({ key: keyMap[i.id] ?? i.id, id: i.id, text: i.text, speaker: (i as AuthoredIdea).authorName ?? i.speaker, authorColor: (i as AuthoredIdea).authorColor, isPending: false, idea: i })),
     ...pending.filter((p) => !claimed.has(p.tempId)).map((p) => ({ key: p.tempId, id: p.tempId, text: p.text, isPending: true })),
   ];
 
+  const items = replayFrame ? allItems.filter((i) => i.isPending || replayFrame.ideas.has(i.id)) : allItems;
+
   function targetFor(item: Item) {
     if (lensReady && item.idea) {
       const pt = lensPoint(item.idea, xAxis.id, yAxis.id, box);
-      return { x: pt.x - STICKY_W / 2, y: pt.y - STICKY_H / 2, rotate: 0, scale: size.w < 640 ? 0.46 : LENS_SCALE };
+      const scale = size.w < 640 ? 0.46 : LENS_SCALE;
+      const hw = (STICKY_W * scale) / 2;
+      const hh = (STICKY_H * scale) / 2;
+      const cx = Math.min(box.left + box.width - hw, Math.max(box.left + hw, pt.x));
+      const cy = Math.min(box.top + box.height - hh, Math.max(box.top + hh, pt.y));
+      return { x: cx - STICKY_W / 2, y: cy - STICKY_H / 2, rotate: 0, scale };
     }
     if (lensReady) {
       return { x: box.left + box.width / 2 - STICKY_W / 2, y: box.top + box.height + 4, rotate: 0, scale: 0.5 };
@@ -505,6 +571,25 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
               <div className="flex shrink-0 items-center gap-1">
                 {sessionId && !scripted ? <InviteButton sessionId={sessionId} className="max-sm:hidden" /> : null}
                 {!scripted ? <PhoneQrButton sessionId={sessionId} /> : null}
+                {!scripted && ideas.length ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      aria-pressed={replayOn}
+                      className={`h-8 px-2.5 max-md:hidden ${replayOn ? "bg-paper-sunk text-ink" : ""}`}
+                      onClick={() => {
+                        setReplayOn((v) => !v);
+                        setReplayFrame(null);
+                      }}
+                    >
+                      Replay
+                    </Button>
+                    <Button type="button" variant="ghost" aria-pressed={convergeOn} className="h-8 px-2.5 max-md:hidden" onClick={() => setConvergeOn(true)}>
+                      Converge
+                    </Button>
+                  </>
+                ) : null}
                 <Button type="button" variant="outline" className="h-8 px-3" disabled={!ideas.length} onClick={() => setWrapOpen(true)}>
                   Wrap up
                 </Button>
@@ -581,6 +666,8 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
               isHighlighted={highlight.has(item.id)}
               isDimmed={(highlight.size > 0 && !highlight.has(item.id)) || (lensReady && quad !== null && item.idea !== undefined && quadOf(item.idea, xAxis.id, yAxis.id) !== quad)}
               isIsland={islandSet.has(item.id)}
+              assumption={item.idea?.kind === "assumption" ? <AssumptionCard idea={item.idea} /> : undefined}
+              isShortlisted={Boolean(item.idea?.shortlisted)}
               canDrag={!lens && !scripted}
               compact={Boolean(lensReady)}
               onHover={setHoverId}
@@ -644,7 +731,7 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
               </div>
             ) : null}
             {lensReady && state ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-full border border-rule bg-paper-raised/95 px-3 py-1.5 text-xs shadow-sm backdrop-blur">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-rule bg-paper-raised/95 px-3 py-1.5 text-xs shadow-sm backdrop-blur max-sm:max-w-[11rem] max-sm:flex-col max-sm:items-start">
                 <AxisPick label="Across" value={xAxis.id} axes={state.axes} onChange={setXId} />
                 <AxisPick label="Up" value={yAxis.id} axes={state.axes} onChange={setYId} />
               </div>
@@ -679,7 +766,8 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
                     if (coachStep === 2) setCoachStep(3);
                   }}
                 >
-                  Lens view <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[10px] opacity-60 sm:inline">L</kbd>
+                  <span className="sm:hidden">Lens</span>
+                  <span className="max-sm:hidden">Lens view</span> <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[10px] opacity-60 sm:inline">L</kbd>
                 </ViewTab>
               </div>
               {snapshot?.draft ? (
@@ -708,6 +796,16 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
         </div>
       ) : null}
 
+      {replayOn && state ? (
+        <div className="absolute inset-x-0 bottom-[5.5rem] z-30 flex justify-center px-4">
+          <div className="w-[min(40rem,100%)] rounded-2xl border border-rule bg-paper-raised/95 p-2 shadow-[var(--shadow-card)] backdrop-blur">
+            <ReplayTimeline
+              state={state}
+              onFrame={onReplayFrame}
+            />
+          </div>
+        </div>
+      ) : null}
       <div className="pointer-events-none absolute top-[7.5rem] right-4 z-30 max-sm:top-auto max-sm:bottom-36 sm:right-8">
         <QuestionNote
           note={note}
@@ -720,7 +818,11 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
       </div>
 
       <AnimatePresence>
-        {wrapOpen && state ? <WrapUp state={state} onClose={() => setWrapOpen(false)} /> : null}
+        {wrapOpen && state ? <WrapUp state={state} getBoardElement={() => viewportRef.current} onClose={() => setWrapOpen(false)} /> : null}
+        {convergeOn && state ? (
+          <ConvergeDrawer key="converge" state={state} onToggleShortlist={(id, next) => void toggleShortlist(id, next)} onClose={() => setConvergeOn(false)} />
+        ) : null}
+        {assumptionOpen ? <AssumptionWriter key="assume" onSubmit={postAssumption} onClose={() => setAssumptionOpen(false)} /> : null}
       </AnimatePresence>
       <span className="sr-only" aria-live="polite">
         {pending.length ? `${pending.length} idea${pending.length === 1 ? "" : "s"} being placed` : ""}
@@ -759,7 +861,7 @@ function AxisPick({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="max-w-[9.5rem] truncate rounded-md bg-transparent py-0.5 text-xs font-medium text-ink outline-none focus-visible:ring-2 focus-visible:ring-signal-ink"
+        className="max-w-[9.5rem] overflow-hidden text-ellipsis rounded-md max-sm:max-w-[7.5rem] bg-transparent py-0.5 text-xs font-medium text-ink outline-none focus-visible:ring-2 focus-visible:ring-signal-ink"
       >
         {axes.map((a) => (
           <option key={a.id} value={a.id}>
