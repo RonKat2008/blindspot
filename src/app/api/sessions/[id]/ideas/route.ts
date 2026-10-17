@@ -24,9 +24,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (!device.data) throw new HttpError(400, "Device does not belong to this session");
     }
     const media = input.texts.map((_, i) => input.media?.[i] ?? null);
-    if (media.some(m => m && !isOwnMediaUrl(m.mediaUrl))) throw new HttpError(400, "mediaUrl must be an uploaded idea-media file");
+    if (media.some(m => m && m.mediaType !== "link" && !isOwnMediaUrl(m.mediaUrl))) throw new HttpError(400, "mediaUrl must be an uploaded idea-media file");
     // The human's label (if any) plus the AI description/transcript is what gets embedded.
-    const embedTexts = input.texts.map((text, i) => [text, media[i]?.caption].filter(Boolean).join(". ") || (media[i]?.mediaType === "audio" ? "Voice note" : "Image"));
+    const embedTexts = input.texts.map((text, i) => media[i]?.mediaType === "link" ? media[i]!.caption! : [text, media[i]?.caption].filter(Boolean).join(". ") || (media[i]?.mediaType === "audio" ? "Voice note" : "Image"));
     // Stored idea text: the human's label; else the transcript (their own words) or the image description.
     const texts = input.texts.map((text, i) => (text || media[i]?.caption || (media[i]?.mediaType === "audio" ? "Voice note" : "Image")).slice(0, IDEA_TEXT_MAX));
     const vectors = await embedMany(embedTexts);

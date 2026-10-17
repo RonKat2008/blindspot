@@ -1,6 +1,9 @@
 // Typed fetch wrappers for every route. Throws Error(message) on non-2xx or `{ error }`.
 // With NEXT_PUBLIC_USE_MOCKS=true every call resolves from src/lib/mock-state.ts instead.
 import type {
+  ContextBody,
+  ContextResponse,
+  SandboxResponse,
   AddIdeasBody,
   AddIdeasResponse,
   CreateSessionBody,
@@ -62,6 +65,14 @@ const mock = <T>(value: T): Promise<T> =>
 const enc = encodeURIComponent;
 
 export const api = {
+  context(body: ContextBody): Promise<ContextResponse> {
+    return request("POST", "/api/context", body);
+  },
+
+  createSandbox(): Promise<SandboxResponse> {
+    return request("POST", "/api/sandbox", {});
+  },
+
   createSession(body: CreateSessionBody): Promise<CreateSessionResponse> {
     if (USE_MOCKS) return mock({ sessionId: MOCK_SESSION_ID, axes: MOCK_AXES });
     return request("POST", "/api/sessions", body);

@@ -49,7 +49,7 @@ export function mapIdea(row: Row): StoredIdea {
   return { id: String(row.id), text: String(row.text), source: row.source as Idea["source"], ...(row.speaker ? { speaker: String(row.speaker) } : {}), ...(row.device_id ? { deviceId: String(row.device_id) } : {}), axisScores: (row.axis_scores ?? {}) as Record<string, number>, createdAt: String(row.created_at), embedding: vector(row.embedding), ...(typeof row.board_x === "number" && typeof row.board_y === "number" ? { board: { x: row.board_x, y: row.board_y } } : {}), ...(typeof row.color === "string" ? { color: row.color } : {}), ...(row.kind === "assumption" || row.kind === "idea" ? { kind: row.kind } : {}), ...(typeof row.shortlisted === "boolean" ? { shortlisted: row.shortlisted } : {}), ...mapMedia(row) };
 }
 function mapMedia(row: Row): Pick<Idea, "mediaType" | "mediaUrl" | "mediaCaption"> {
-  const type = row.media_type === "image" || row.media_type === "audio" ? row.media_type : null;
+  const type = row.media_type === "image" || row.media_type === "audio" || row.media_type === "link" ? row.media_type : null;
   if (!type || typeof row.media_url !== "string") return { mediaType: "text" };
   return { mediaType: type, mediaUrl: row.media_url, ...(typeof row.media_caption === "string" && row.media_caption ? { mediaCaption: row.media_caption } : {}) };
 }
