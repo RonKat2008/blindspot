@@ -1,5 +1,6 @@
 import { after } from "next/server";
-import { AddIdeasBody, DETECT_EVERY_N_IDEAS } from "@/lib/contract";
+import { AddIdeasBody, DETECT_EVERY_N_IDEAS, IDEA_TEXT_MAX } from "@/lib/contract";
+import { isOwnMediaUrl } from "@/lib/media";
 import { embedMany } from "@/lib/ai";
 import { body, check, db, failure, HttpError, loadSession, mapIdea, mapProvocation, metrics, publicIdeas, saveScores, validId } from "@/lib/db";
 import { scoreIdeas } from "@/lib/engine/score";
@@ -22,9 +23,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       check(device.error);
       if (!device.data) throw new HttpError(400, "Device does not belong to this session");
     }
-    const vectors = await embedMany(input.texts);
+    const media = input.texts.map((_, i) => input.media?.[i] ?? null);
+    if (media.some(m => m && !isOwnMediaUrl(m.mediaUrl))) throw new HttpError(400, "mediaUrl must be an uploaded idea-media file");
+    // The human's label (if any) plus the AI description/transcript is what gets embedded.
+    const embedTexts = input.texts.map((text, i) => [text, media[i]?.caption].filter(Boolean).join(". ") || (media[i]?.mediaType === "audio" ? "Voice note" : "Image"));
+    // Stored idea text: the human's label; else the transcript (their own words) or the image description.
+    const texts = input.texts.map((text, i) => (text || media[i]?.caption || (media[i]?.mediaType === "audio" ? "Voice note" : "Image")).slice(0, IDEA_TEXT_MAX));
+    const vectors = await embedMany(embedTexts);
     const now = Date.now();
-    const inserted = await client.from("ideas").insert(input.texts.map((text, i) => ({ id: crypto.randomUUID(), session_id: id, text, source: input.source, speaker, ...(user ? { author_id: user.id } : {}), device_id: input.deviceId ?? null, embedding: JSON.stringify(vectors[i]), axis_scores: {}, board_x: input.positions?.[i]?.x ?? null, board_y: input.positions?.[i]?.y ?? null, color: input.color ?? null, created_at: new Date(now + i).toISOString() }))).select("*");
+    const inserted = await client.from("ideas").insert(texts.map((text, i) => ({ id: crypto.randomUUID(), session_id: id, text, source: input.source, media_type: media[i]?.mediaType ?? "text", media_url: media[i]?.mediaUrl ?? null, media_caption: media[i]?.caption ?? null, speaker, ...(user ? { author_id: user.id } : {}), device_id: input.deviceId ?? null, embedding: JSON.stringify(vectors[i]), axis_scores: {}, board_x: input.positions?.[i]?.x ?? null, board_y: input.positions?.[i]?.y ?? null, color: input.color ?? null, created_at: new Date(now + i).toISOString() }))).select("*");
     check(inserted.error);
     if (user) await ensureMembership(user, id, "editor");
     const newIds = new Set((inserted.data ?? []).map(row => mapIdea(row).id));
