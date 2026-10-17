@@ -49,20 +49,20 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --background: oklch(0.972 0.012 85);
+  --foreground: oklch(0.22 0.03 50);
+  --card: oklch(0.99 0.008 85);
+  --card-foreground: oklch(0.22 0.03 50);
+  --popover: oklch(0.99 0.008 85);
+  --popover-foreground: oklch(0.22 0.03 50);
+  --primary: oklch(0.38 0.07 42);
+  --primary-foreground: oklch(0.98 0.01 85);
+  --secondary: oklch(0.94 0.02 80);
+  --secondary-foreground: oklch(0.28 0.03 50);
+  --muted: oklch(0.94 0.015 80);
+  --muted-foreground: oklch(0.48 0.03 55);
+  --accent: oklch(0.9 0.06 75);
+  --accent-foreground: oklch(0.28 0.04 45);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
@@ -127,4 +127,20 @@
   html {
     @apply font-sans;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hatch {
+    animation: none !important;
+  }
+}
+
+.hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 5px,
+    color-mix(in oklch, var(--foreground) 12%, transparent) 5px,
+    color-mix(in oklch, var(--foreground) 12%, transparent) 6px
+  );
 }
