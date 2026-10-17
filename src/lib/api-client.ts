@@ -6,10 +6,13 @@ import type {
   CreateSessionBody,
   CreateSessionResponse,
   ExtractResponse,
+  MediaDescribeResponse,
+  MediaUploadResponse,
   OkResponse,
   RealityResponse,
   RegisterDeviceBody,
   RegisterDeviceResponse,
+  RelatedResponse,
   SessionState,
   UpdateAxesBody,
   UpdateAxesResponse,
@@ -116,5 +119,25 @@ export const api = {
   reality(ideaIds: string[]): Promise<RealityResponse> {
     if (USE_MOCKS) return mock({ queries: ["peer onboarding buddy program"], resultCounts: [1240] });
     return request("POST", "/api/reality", { ideaIds });
+  },
+
+  /** Multipart upload to the idea-media bucket. Keep files under ~4 MB on Vercel (request body limit). */
+  async uploadMedia(sessionId: string, file: Blob, filename = "upload"): Promise<MediaUploadResponse> {
+    const form = new FormData();
+    form.append("file", file, filename);
+    form.append("sessionId", sessionId);
+    const res = await fetch("/api/media/upload", { method: "POST", body: form, cache: "no-store" });
+    const data = (await res.json().catch(() => null)) as (MediaUploadResponse & { error?: string }) | null;
+    if (!res.ok || !data || data.error) throw new ApiError(data?.error ?? `Request failed (${res.status})`, res.status);
+    return data;
+  },
+
+  /** Image -> one-sentence description; audio -> transcript (<= 400 chars). */
+  describeMedia(url: string, mediaType: "image" | "audio"): Promise<MediaDescribeResponse> {
+    return request("POST", "/api/media/describe", { url, mediaType });
+  },
+
+  related(ideaId: string): Promise<RelatedResponse> {
+    return request("GET", `/api/ideas/${enc(ideaId)}/related`);
   },
 };
