@@ -1,5 +1,6 @@
 import { UpdateAxesBody } from "@/lib/contract";
 import { embedMany } from "@/lib/ai";
+import { describePoles } from "@/lib/prompts/poles";
 import { body, check, db, failure, HttpError, loadSession, publicAxis, saveScores, validId } from "@/lib/db";
 import { scoreIdeas, type AxisWithEmbeddings } from "@/lib/engine/score";
 export const dynamic = "force-dynamic";
@@ -14,12 +15,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       if (seen.has(axis.id) || !data.axes.some(a => a.id === axis.id)) throw new HttpError(400, "Unknown or repeated axis identifier");
       seen.add(axis.id);
     }
+    const described = await describePoles(input.axes);
     const pending: string[] = [];
-    for (const axis of input.axes) {
+    input.axes.forEach((axis, i) => {
       const old = data.axes.find(a => a.id === axis.id);
-      if (!old || axis.poleA !== old.poleA) pending.push(axis.poleA);
-      if (!old || axis.poleB !== old.poleB) pending.push(axis.poleB);
-    }
+      if (!old || axis.poleA !== old.poleA) pending.push(described[i].poleA);
+      if (!old || axis.poleB !== old.poleB) pending.push(described[i].poleB);
+    });
     const vectors = await embedMany(pending);
     let cursor = 0;
     const axes: AxisWithEmbeddings[] = input.axes.map((axis, position) => {
