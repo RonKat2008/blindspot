@@ -4,8 +4,8 @@ import { requireUser } from "@/lib/auth";
 import { listBoards } from "@/lib/supabase/boards";
 import type { BoardSummary } from "@/lib/supabase/account-types";
 import { PaperPage } from "@/components/account/paper";
-import { AccountMenuView } from "@/components/account/account-menu";
 import { BoardCard } from "@/components/account/board-card";
+import { SiteFrame } from "@/components/site/site-frame";
 
 export const metadata: Metadata = { title: "My boards · Blind Spot" };
 export const dynamic = "force-dynamic";
@@ -25,21 +25,18 @@ export default async function BoardsPage() {
 
   return (
     <PaperPage>
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 pt-6 sm:px-8">
-        <Link href="/" className="display text-xl tracking-tight">Blind Spot</Link>
-        <AccountMenuView user={{ id: user.id, email: user.email, displayName: user.displayName, color: user.color }} />
-      </header>
-      <main className="mx-auto max-w-6xl px-4 pb-24 pt-12 sm:px-8">
+      <SiteFrame>
+      <main className="mx-auto max-w-6xl px-4 pb-16 pt-12 sm:px-8">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
-            <h1 className="display text-[clamp(2.25rem,1.6rem+2.5vw,3.5rem)] leading-none tracking-tight">Your boards, {firstName}.</h1>
+            <h1 className="display font-display text-[clamp(2.25rem,1.6rem+2.5vw,3.5rem)] leading-none tracking-tight">Your boards, {firstName}.</h1>
             <p className="mt-3 text-[var(--ink-soft)]">
               {waiting > 0
                 ? <><strong className="text-[var(--signal-ink)]">{waiting} new {waiting === 1 ? "sticky" : "stickies"}</strong> from your team since you last looked.</>
                 : boards.length > 0 ? "You're all caught up." : "Nothing here yet."}
             </p>
           </div>
-          <Link href="/" className="acct-btn">+ New board</Link>
+          <Link href="/new" className="acct-btn">New board</Link>
         </div>
 
         {failed && <p role="alert" className="mt-10 text-[var(--signal-ink)]">Couldn&apos;t load your boards. Refresh to try again.</p>}
@@ -56,6 +53,7 @@ export default async function BoardsPage() {
           </ul>
         )}
       </main>
+      </SiteFrame>
     </PaperPage>
   );
 }
@@ -77,7 +75,8 @@ function EmptyState() {
           </li>
         ))}
       </ol>
-      <p className="display mt-12 text-xl italic text-[var(--signal-ink)]">What&apos;s a question your team keeps circling without an answer?</p>
+      <p className="display font-display mt-12 text-2xl italic text-[var(--signal-ink)]">Your first board is one click away.</p>
+      <Link href="/new" className="acct-btn mt-6">New board</Link>
     </section>
   );
 }

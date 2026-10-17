@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import "./theme.css";
+import { SiteFrame } from "@/components/site/site-frame";
 import { InsightsView } from "./insights-view";
 
 export const metadata: Metadata = {
@@ -8,5 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function InsightsPage() {
-  return <InsightsView />;
+  return (
+    <SiteFrame>
+      <InsightsView />
+    </SiteFrame>
+  );
 }
