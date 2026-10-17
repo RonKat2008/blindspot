@@ -6,13 +6,17 @@ import { z } from "zod";
 
 // ---------- Domain types ----------
 
-export type PatternType = "gap" | "fixation" | "duplicate" | "abandoned" | "unexplored";
+export type PatternType = "gap" | "fixation" | "duplicate" | "abandoned" | "unexplored" | "bridge" | "voice" | "shortlist" | "assumption";
 export const PATTERN_TYPES: readonly PatternType[] = [
   "gap",
   "fixation",
   "duplicate",
   "abandoned",
   "unexplored",
+  "bridge",
+  "voice",
+  "shortlist",
+  "assumption",
 ] as const;
 
 export type IdeaSource = "typed" | "voice" | "photo";
@@ -39,6 +43,8 @@ export type Idea = {
   id: string;
   text: string;
   source: IdeaSource;
+  kind?: "idea" | "assumption";
+  shortlisted?: boolean;
   speaker?: string;
   deviceId?: string;
   /** axisId -> score in [-1, 1]. -1 = poleA end, +1 = poleB end. */
@@ -80,6 +86,7 @@ export type Device = {
 export type DetectionSignal = {
   type: PatternType;
   strength: number; // 0..1
+  speaker?: string;
   ideaIds: string[];
   axisId?: string;
   /** For gap signals: which end is empty. -1 = poleA end, +1 = poleB end. */
@@ -139,7 +146,11 @@ export type UpdateAxesBody = z.infer<typeof UpdateAxesBody>;
 export type UpdateAxesResponse = { axes: Axis[] };
 
 export const BoardPosition = z.object({ x: z.number().finite(), y: z.number().finite() });
-export const UpdateIdeaBody = z.object({ board: BoardPosition });
+export const UpdateIdeaBody = z.object({
+  board: BoardPosition.optional(),
+  kind: z.enum(["idea", "assumption"]).optional(),
+  shortlisted: z.boolean().optional(),
+}).strict().refine(value => Object.values(value).some(v => v !== undefined), { message: "At least one update is required" });
 
 export const AddIdeasBody = z.object({
   texts: z.array(z.string().trim().min(1).max(IDEA_TEXT_MAX)).min(1).max(20),
