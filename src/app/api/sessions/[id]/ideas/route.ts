@@ -5,6 +5,8 @@ import { body, check, db, failure, HttpError, loadSession, mapIdea, mapProvocati
 import { scoreIdeas } from "@/lib/engine/score";
 import { detect } from "@/lib/engine/detect";
 import { writeProvocation } from "@/lib/prompts";
+import { getCurrentUser } from "@/lib/auth";
+import { boardPeople, ensureMembership, withAuthors } from "@/lib/supabase/members";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
@@ -12,7 +14,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const input = await body(request, AddIdeasBody);
     const id = validId((await params).id), client = db();
-    const before = await loadSession(client, id);
+    const [before, user] = await Promise.all([loadSession(client, id), getCurrentUser()]);
+    const speaker = input.speaker ?? user?.displayName ?? null;
     if (input.deviceId) {
       validId(input.deviceId);
       const device = await client.from("devices").select("id").eq("id", input.deviceId).eq("session_id", id).maybeSingle();
@@ -21,15 +24,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     const vectors = await embedMany(input.texts);
     const now = Date.now();
-    const inserted = await client.from("ideas").insert(input.texts.map((text, i) => ({ id: crypto.randomUUID(), session_id: id, text, source: input.source, speaker: input.speaker ?? null, device_id: input.deviceId ?? null, embedding: JSON.stringify(vectors[i]), axis_scores: {}, board_x: input.positions?.[i]?.x ?? null, board_y: input.positions?.[i]?.y ?? null, color: input.color ?? null, created_at: new Date(now + i).toISOString() }))).select("*");
+    const inserted = await client.from("ideas").insert(input.texts.map((text, i) => ({ id: crypto.randomUUID(), session_id: id, text, source: input.source, speaker, ...(user ? { author_id: user.id } : {}), device_id: input.deviceId ?? null, embedding: JSON.stringify(vectors[i]), axis_scores: {}, board_x: input.positions?.[i]?.x ?? null, board_y: input.positions?.[i]?.y ?? null, color: input.color ?? null, created_at: new Date(now + i).toISOString() }))).select("*");
     check(inserted.error);
+    if (user) await ensureMembership(user, id, "editor");
     const newIds = new Set((inserted.data ?? []).map(row => mapIdea(row).id));
     // Reload after insertion to include ideas posted by other devices during embedding.
     const data = await loadSession(client, id);
     const scores = scoreIdeas(data.ideas.map(i => i.embedding), data.axes);
     data.ideas.forEach((idea, i) => { idea.axisScores = scores[i]; });
     await saveScores(client, data.ideas);
-    const allIdeas = publicIdeas(data.ideas);
+    const people = user ? await boardPeople(client, id, user).catch(() => null) : null;
+    const allIdeas = people ? withAuthors(publicIdeas(data.ideas), people.authorOf, people.members) : publicIdeas(data.ideas);
     let provocation = null;
     if (Math.floor(data.ideas.length / DETECT_EVERY_N_IDEAS) > Math.floor(before.ideas.length / DETECT_EVERY_N_IDEAS)) {
       const signal = detect({ ideas: data.ideas, axes: data.axes, lastType: data.provocations.at(-1)?.type });
