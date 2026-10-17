@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -180,7 +180,18 @@ type RailProps = { index: number; onSelect: (i: number) => void; progress: numbe
 
 function ChapterRail({ index, onSelect, progress, isVideo }: RailProps) {
   const reduce = useReducedMotion();
+  const listRef = useRef<HTMLOListElement>(null);
   const items = [...CHAPTERS.map((c) => c.label), "Start yours"];
+
+  // On narrow screens the rail is a horizontal strip: keep the active chapter in view.
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || list.scrollWidth <= list.clientWidth) return;
+    const active = list.querySelector<HTMLElement>("[aria-current='step']");
+    if (!active) return;
+    const left = active.offsetLeft - list.clientWidth / 2 + active.offsetWidth / 2;
+    list.scrollTo({ left, behavior: reduce ? "auto" : "smooth" });
+  }, [index, reduce]);
   return (
     <aside aria-label="Chapters" className="min-w-0 border-b border-rule bg-paper-sunk/60 lg:border-r lg:border-b-0">
       <div className="px-4 pt-4 sm:px-8 lg:px-6">
@@ -199,7 +210,7 @@ function ChapterRail({ index, onSelect, progress, isVideo }: RailProps) {
           />
         </div>
       </div>
-      <ol className="flex gap-1 overflow-x-auto px-4 py-3 sm:px-8 lg:flex-col lg:overflow-visible lg:px-3 lg:py-4">
+      <ol ref={listRef} className="flex gap-1 overflow-x-auto px-4 py-3 sm:px-8 lg:flex-col lg:overflow-visible lg:px-3 lg:py-4">
         {items.map((label, i) => {
           const isActive = i === index;
           return (

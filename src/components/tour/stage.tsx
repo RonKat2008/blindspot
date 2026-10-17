@@ -42,9 +42,10 @@ export function ChapterStage({ chapter, number, total, isVideo }: StageProps) {
           Chapter {String(number).padStart(2, "0")} <span className="text-ink-faint">/ {total}</span>
         </p>
         <h1
+          style={{ lineHeight: 1.06 }}
           className={cn(
-            "mt-3 font-display leading-[1.05] tracking-tight text-balance",
-            isVideo ? "text-[clamp(2.25rem,1.4rem+3.2vw,4.25rem)]" : "text-[clamp(2rem,1.3rem+2.6vw,3.5rem)]",
+            "mt-3 font-display tracking-tight text-balance",
+            isVideo ? "text-[clamp(2.25rem,1.3rem+2.8vw,3.9rem)]" : "text-[clamp(2rem,1.3rem+2.6vw,3.5rem)]",
           )}
         >
           {chapter.title}
@@ -96,7 +97,7 @@ export function EndCard({ isVideo, onRestart }: EndProps) {
   return (
     <article className="flex min-h-[60vh] flex-col justify-center py-8">
       <p className="text-xs tracking-[0.14em] text-signal-ink uppercase">That&apos;s the tour</p>
-      <h1 className="mt-3 max-w-3xl font-display text-[clamp(2.5rem,1.5rem+4vw,4.5rem)] leading-[1.02] tracking-tight text-balance">
+      <h1 style={{ lineHeight: 1.04 }} className="mt-3 max-w-3xl font-display text-[clamp(2.5rem,1.5rem+4vw,4.5rem)] tracking-tight text-balance">
         Find the ideas you&apos;re <em className="text-signal-ink">not</em> having.
       </h1>
       <p className={cn("mt-5 max-w-xl text-ink-soft", isVideo ? "text-xl" : "text-lg")}>
