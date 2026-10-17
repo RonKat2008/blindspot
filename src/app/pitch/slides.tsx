@@ -52,7 +52,7 @@ function Product() {
       </Item>
       <Item className="mt-10 self-start rounded-[12px] border border-dashed border-[var(--signal)] bg-[var(--signal-wash)] px-5 py-4">
         <p className={kicker}>The one rule</p>
-        <p className="display mt-1 text-[clamp(1.25rem,1rem+1.2vw,2rem)] font-semibold">
+        <p className="display font-display mt-1 text-[clamp(1.25rem,1rem+1.2vw,2rem)] font-semibold">
           It asks. It never suggests.
         </p>
       </Item>
@@ -83,7 +83,7 @@ function How() {
           {STEPS.map((s, i) => (
             <li key={s.n} className="relative sm:pr-6">
               <div className="flex items-center gap-3">
-                <span className="display flex size-10 shrink-0 items-center justify-center rounded-full border-2 text-lg font-semibold" style={{ borderColor: s.color, color: s.color }}>
+                <span className="display font-display flex size-10 shrink-0 items-center justify-center rounded-full border-2 text-lg font-semibold" style={{ borderColor: s.color, color: s.color }}>
                   {s.n}
                 </span>
                 {i < STEPS.length - 1 && (
@@ -92,7 +92,7 @@ function How() {
                   </svg>
                 )}
               </div>
-              <h2 className="display mt-4 text-3xl font-semibold" style={{ color: s.color }}>
+              <h2 className="display font-display mt-4 text-3xl font-semibold" style={{ color: s.color }}>
                 {s.title}
               </h2>
               <p className="mt-2 max-w-[18rem] text-[var(--text-base)] text-[var(--ink-soft)]">{s.body}</p>
@@ -114,14 +114,14 @@ function Company() {
       <Item className="mt-10 grid gap-8 border-t-2 border-[var(--ink)] pt-6 sm:grid-cols-2 sm:gap-12">
         <div>
           <p className={kicker}>Wedge</p>
-          <p className="display mt-2 text-2xl font-semibold">Product and design teams</p>
+          <p className="display font-display mt-2 text-2xl font-semibold">Product and design teams</p>
           <p className="mt-1 text-[var(--ink-soft)]">Alongside FigJam and Miro, not instead of them.</p>
-          <p className="display mt-4 text-2xl font-semibold">Education</p>
+          <p className="display font-display mt-4 text-2xl font-semibold">Education</p>
           <p className="mt-1 text-[var(--ink-soft)]">Teach students to see their own thinking.</p>
         </div>
         <div>
           <p className={kicker}>Moat</p>
-          <p className="display mt-2 text-2xl font-semibold">Longitudinal data on how a team thinks.</p>
+          <p className="display font-display mt-2 text-2xl font-semibold">Longitudinal data on how a team thinks.</p>
           <p className="mt-1 text-[var(--ink-soft)]">Every session sharpens the next. No one else holds this.</p>
           <Link
             href="/insights"
@@ -146,7 +146,7 @@ function Close() {
         </h1>
       </Item>
       <Item className="mt-10 flex items-baseline gap-4">
-        <span className="display text-2xl font-semibold">Blind Spot</span>
+        <span className="display font-display text-2xl font-semibold">Blind Spot</span>
         <span className="text-[var(--ink-soft)]">You wrote it. We asked.</span>
       </Item>
     </Stage>

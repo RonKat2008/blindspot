@@ -1,4 +1,4 @@
-// Eval: 20 provocations over 4 fixture sessions; each is re-checked by regex + Haiku judge.
+// Eval: 20 legacy + 20 thinking-aid cases; at most three concurrent provider pipelines.
 // Run: npx tsx --env-file=.env.local scripts/eval-provocations.ts
 import type { Axis, DetectionSignal, Idea } from "../src/lib/contract";
 import { judgeIsSafe, passesRegex, wordCount } from "../src/lib/prompts/guard";
@@ -154,25 +154,77 @@ function build(spec: Spec): { axes: Axis[]; ideas: Idea[]; signals: DetectionSig
   return { axes, ideas, signals };
 }
 
-async function main(): Promise<void> {
-  let pass = 0;
-  let total = 0;
-  let llm = 0;
-  for (const spec of SPECS) {
+type EvalCase = { name: string; group: "legacy" | "new"; prompt: string; axes: Axis[]; ideas: Idea[]; signal: DetectionSignal };
+
+function cases(): EvalCase[] {
+  const legacy: EvalCase[] = SPECS.flatMap(spec => {
     const { axes, ideas, signals } = build(spec);
-    console.log(`\n=== ${spec.name}: ${spec.prompt}`);
-    const results = await Promise.all(
-      signals.map((s) => writeProvocationGuarded(s, ideas, axes, spec.prompt)),
-    );
-    for (let k = 0; k < results.length; k++) {
-      const r = results[k];
-      total++;
-      if (r.source === "llm") llm++;
-      let ok = passesRegex(r.text) && passesRegex(r.why.explanation) && wordCount(r.text) < 30;
-      let reason = ok ? "" : "regex/length";
+    return signals.map(signal => ({ name: spec.name, group: "legacy", prompt: spec.prompt, axes, ideas, signal }));
+  });
+  // Five distinct boards per new type; alternate assumption invite and flip.
+  const boards = [...SPECS, { ...SPECS[0], name: "library", prompt: "Make the library easier to navigate",
+    ideas: [
+      ["Color labels on shelves", [-0.8, -0.7, -0.6, -0.5]],
+      ["Printed shelf directory", [-0.9, -0.6, -0.7, -0.4]],
+      ["Large room maps", [-0.5, -0.8, -0.9, -0.3]],
+      ["Desk staff give directions", [0.7, 0.6, 0.8, 0.4]],
+    ] as Spec["ideas"] }];
+  const extra: EvalCase[] = boards.flatMap((spec, index) => {
+    const { axes, ideas: base } = build(spec);
+    const ideas: Idea[] = base.map((idea, i) => ({ ...idea, kind: "idea", speaker: i < 3 ? "Maya" : "Noor", shortlisted: i < 3,
+      axisScores: { ...idea.axisScores, [axes[0].id]: i < 3 ? -0.8 : 0.8 } }));
+    const flip = index % 2 === 1;
+    if (flip) ideas.push({ ...ideas[0], id: "assumption-card", text: index === 1
+      ? "Students know how much they will eat" : "Riders already know their route", kind: "assumption", shortlisted: false });
+    const signals: DetectionSignal[] = [
+      { type: "voice", strength: 1, axisId: axes[0].id, side: -1, speaker: "Maya", ideaIds: ideas.slice(0, 3).map(i => i.id) },
+      { type: "shortlist", strength: 1, axisId: axes[0].id, side: -1, ideaIds: ideas.slice(0, 3).map(i => i.id) },
+      { type: "assumption", strength: 1, ideaIds: flip ? ["assumption-card"] : ideas.slice(0, 3).map(i => i.id) },
+      { type: "bridge", strength: 1, ideaIds: [ideas[0].id, ideas[3].id] },
+    ];
+    return signals.map(signal => ({ name: `${spec.name}${signal.type === "assumption" ? flip ? "/flip" : "/invite" : ""}`,
+      group: "new" as const, prompt: spec.prompt, axes, ideas, signal }));
+  });
+  return [...legacy, ...extra];
+}
+
+/** Check grounding and the action requested, beyond the independent suggestion judge. */
+function matchesPattern(job: EvalCase, text: string): boolean {
+  if (job.group === "legacy") return true;
+  const lower = text.toLowerCase();
+  const axis = job.axes.find(a => a.id === job.signal.axisId);
+  const pole = job.signal.side === 1 ? axis?.poleB : axis?.poleA;
+  const refs = job.signal.ideaIds.map(id => job.ideas.find(i => i.id === id)).filter((i): i is Idea => Boolean(i));
+  const quotes = [...text.matchAll(/[“"]([^”"]+)[”"]/g)].map(m => m[1].toLowerCase());
+  const quoted = (idea: Idea) => quotes.some(q => q.split(/\s+/).length >= 2 && idea.text.toLowerCase().includes(q));
+  switch (job.signal.type) {
+    case "voice": return lower.includes(job.signal.speaker!.toLowerCase()) && lower.includes(pole!.toLowerCase()) && /other|rest|anyone|everyone/.test(lower);
+    case "shortlist": return /shortlist/.test(lower) && lower.includes(pole!.toLowerCase()) && /intent|deliberat|choice|chosen|purpose|meant/.test(lower);
+    case "bridge": return refs.length === 2 && refs.every(quoted);
+    case "assumption": {
+      const card = refs.find(i => i.kind === "assumption");
+      return card ? quoted(card) && /false|untrue|wrong|doesn.t hold|not true/.test(lower)
+        : refs.some(quoted) && /assum/.test(lower) && /write|word|card|name|articulat|state|spell/.test(lower);
+    }
+    default: return false;
+  }
+}
+
+async function main(): Promise<void> {
+  const jobs = cases();
+  const totals = { legacy: { pass: 0, llmPass: 0, total: 0 }, new: { pass: 0, llmPass: 0, total: 0 } };
+  let next = 0;
+  // A worker includes generation AND independent re-judging, keeping total concurrency <= 3.
+  await Promise.all(Array.from({ length: 3 }, async () => {
+    while (next < jobs.length) {
+      const job = jobs[next++];
+      const r = await writeProvocationGuarded(job.signal, job.ideas, job.axes, job.prompt);
+      let ok = passesRegex(r.text) && passesRegex(r.why.explanation) && wordCount(r.text) <= 22
+        && r.text.endsWith("?") && (r.text.match(/\?/g) ?? []).length === 1 && matchesPattern(job, r.text);
+      let reason = ok ? "" : "regex/length/question/pattern grounding";
       if (ok) {
         try {
-          const v = await judgeIsSafe(r.text, ideas.map((i) => i.text));
+          const v = await judgeIsSafe(`${r.text}\nExplanation: ${r.why.explanation}`, job.ideas.map(i => i.text));
           ok = v.safe;
           reason = v.reason;
         } catch (e) {
@@ -180,15 +232,19 @@ async function main(): Promise<void> {
           reason = `judge error: ${e instanceof Error ? e.message : String(e)}`;
         }
       }
-      if (ok) pass++;
-      console.log(
-        `[${ok ? "PASS" : "FAIL"}] ${signals[k].type.padEnd(10)} (${r.source}, try ${r.attempts}) ${r.text}`,
-      );
+      const stats = totals[job.group];
+      stats.total++;
+      if (ok) stats.pass++;
+      if (ok && r.source === "llm") stats.llmPass++;
+      console.log(`[${ok ? "PASS" : "FAIL"}] ${job.group} ${job.name} ${job.signal.type} (${r.source}, try ${r.attempts}) ${r.text}`);
       console.log(`        why: ${r.why.explanation}${ok ? "" : `\n        reason: ${reason}`}`);
     }
+  }));
+  for (const [group, stats] of Object.entries(totals)) {
+    console.log(`${group}: safe ${stats.pass}/${stats.total} | LLM-written passes ${stats.llmPass}/${stats.total}`);
   }
-  console.log(`\nPass rate: ${pass}/${total}  |  LLM-authored (not template): ${llm}/${total}`);
-  process.exitCode = pass >= 19 ? 0 : 1;
+  // Template safety alone cannot satisfy the generation target. Both sets are required.
+  process.exitCode = Object.values(totals).every(s => s.pass >= 19 && s.llmPass >= 19) ? 0 : 1;
 }
 
 void main();

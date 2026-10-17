@@ -43,7 +43,7 @@ export function Deck() {
   return (
     <div className="bs-scope relative flex min-h-dvh flex-col overflow-hidden" onClick={() => go(1)}>
       <header className="flex items-baseline justify-between px-4 pt-5 sm:px-10">
-        <span className="display text-lg font-semibold tracking-tight">Blind Spot</span>
+        <span className="display font-display text-lg font-semibold tracking-tight">Blind Spot</span>
         <span className="tnum text-sm text-[var(--ink-soft)]" aria-live="polite">
           {index + 1} / {SLIDES.length}
         </span>

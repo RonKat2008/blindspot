@@ -143,7 +143,7 @@ function Sparkline() {
       {pts.map((p, i) => (
         <motion.g key={p.label} {...enter(0.35 + i * 0.35)}>
           <circle cx={p.x} cy={p.y} r={i === 2 ? 5.5 : 4} fill={i === 2 ? "var(--signal)" : "var(--paper-raised)"} stroke="var(--signal-ink)" strokeWidth={2} />
-          <text x={p.x} y={p.y - 14} textAnchor="middle" className="display tnum" fontSize={i === 2 ? 24 : 18} fontWeight={600} fill="var(--ink)">
+          <text x={p.x} y={p.y - 14} textAnchor="middle" className="display font-display tnum" fontSize={i === 2 ? 24 : 18} fontWeight={600} fill="var(--ink)">
             {p.v}
           </text>
           <text x={p.x} y={SP.h - 8} textAnchor="middle" fontSize={10.5} fill="var(--ink-soft)">
@@ -215,20 +215,17 @@ export function InsightsView() {
   const fade = reduce ? { transition: reducedTransition } : {};
 
   return (
-    <div className="bs-scope min-h-screen">
-      <div className="mx-auto w-full max-w-6xl px-4 pb-24 pt-6 sm:px-8">
-        <header className="flex items-baseline justify-between gap-4 border-b border-[var(--rule)] pb-4">
-          <span className="display text-xl font-semibold tracking-tight">Blind Spot</span>
-          <span className="text-sm text-[var(--ink-soft)]">
-            {TEAM} <span aria-hidden>·</span> {SESSIONS.length} sessions
-          </span>
-        </header>
+    <div className="min-h-0">
+      <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-10 sm:px-8">
+        <p className="text-sm text-[var(--ink-soft)]">
+          {TEAM} <span aria-hidden>·</span> {SESSIONS.length} sessions
+        </p>
 
-        <motion.section variants={staggerChildren} initial={reduce ? false : "hidden"} animate="show" className="pt-[var(--space-section,4rem)]">
+        <motion.section variants={staggerChildren} initial={reduce ? false : "hidden"} animate="show" className="pt-8">
           <motion.div variants={fadeUp} {...fade}>
             <Label>Your team&apos;s thinking, over time</Label>
           </motion.div>
-          <motion.h1 variants={fadeUp} {...fade} className="display mt-4 max-w-4xl text-balance font-semibold leading-[1.04] tracking-[-0.02em] [font-size:var(--text-hero)]">
+          <motion.h1 variants={fadeUp} {...fade} className="display font-display mt-4 max-w-4xl text-balance font-semibold leading-[1.04] tracking-[-0.02em] [font-size:var(--text-hero)]">
             Across {SESSIONS.length} sessions, your team{" "}
             <span className="relative whitespace-nowrap italic text-[var(--signal-ink)]">
               never went radical.
@@ -255,7 +252,7 @@ export function InsightsView() {
         <div className="mt-14 grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
           <section aria-labelledby="coverage-h" className="rounded-[20px] bg-[var(--paper-raised)] p-4 shadow-[var(--shadow-card)] sm:p-7">
             <Label>Lens coverage</Label>
-            <h2 id="coverage-h" className="display mt-1 text-2xl font-semibold tracking-tight">
+            <h2 id="coverage-h" className="display font-display mt-1 text-2xl font-semibold tracking-tight">
               Where the ideas landed
             </h2>
             <p className="mb-5 mt-1 text-sm text-[var(--ink-soft)]">
@@ -268,7 +265,7 @@ export function InsightsView() {
             <section aria-labelledby="range-h">
               <Label>Range score</Label>
               <div className="mt-1 flex items-baseline justify-between gap-4">
-                <h2 id="range-h" className="display text-2xl font-semibold tracking-tight">
+                <h2 id="range-h" className="display font-display text-2xl font-semibold tracking-tight">
                   Widening, slowly
                 </h2>
                 <span className="tnum text-sm font-semibold text-[var(--accept)]">
@@ -282,7 +279,7 @@ export function InsightsView() {
 
             <section aria-labelledby="take-h">
               <Label>Questions taken</Label>
-              <h2 id="take-h" className="display mt-1 text-2xl font-semibold tracking-tight">
+              <h2 id="take-h" className="display font-display mt-1 text-2xl font-semibold tracking-tight">
                 They started listening
               </h2>
               <p className="mt-1 flex items-center gap-4 text-xs text-[var(--ink-soft)]">
@@ -303,7 +300,7 @@ export function InsightsView() {
           transition={reduce ? reducedTransition : spring.gentle}
           className="mt-20 border-t-2 border-[var(--ink)] pt-8"
         >
-          <p className="display text-balance font-semibold leading-[1.05] tracking-[-0.02em] [font-size:var(--text-hero)]">
+          <p className="display font-display text-balance font-semibold leading-[1.05] tracking-[-0.02em] [font-size:var(--text-hero)]">
             The AI wrote <span className="tnum text-[var(--signal-ink)]">0</span> of{" "}
             <span className="tnum">{TOTAL_IDEAS}</span> ideas.
           </p>
