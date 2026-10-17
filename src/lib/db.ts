@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { Axis, Idea, Provocation, Session, SessionState } from "./contract";
 import { diversity } from "./engine/diversity";
+import { graph } from "./engine/graph";
 import { pca2 } from "./engine/project";
 import type { AxisWithEmbeddings } from "./engine/score";
 
@@ -45,11 +46,11 @@ export function publicAxis(axis: AxisWithEmbeddings): Axis {
   return { id: axis.id, poleA: axis.poleA, poleB: axis.poleB, userEdited: axis.userEdited, position: axis.position };
 }
 export function mapIdea(row: Row): StoredIdea {
-  return { id: String(row.id), text: String(row.text), source: row.source as Idea["source"], ...(row.speaker ? { speaker: String(row.speaker) } : {}), ...(row.device_id ? { deviceId: String(row.device_id) } : {}), axisScores: (row.axis_scores ?? {}) as Record<string, number>, createdAt: String(row.created_at), embedding: vector(row.embedding) };
+  return { id: String(row.id), text: String(row.text), source: row.source as Idea["source"], ...(row.speaker ? { speaker: String(row.speaker) } : {}), ...(row.device_id ? { deviceId: String(row.device_id) } : {}), axisScores: (row.axis_scores ?? {}) as Record<string, number>, createdAt: String(row.created_at), embedding: vector(row.embedding), ...(typeof row.board_x === "number" && typeof row.board_y === "number" ? { board: { x: row.board_x, y: row.board_y } } : {}), ...(typeof row.color === "string" ? { color: row.color } : {}) };
 }
 export function publicIdeas(ideas: StoredIdea[]): Idea[] {
   const coords = pca2(ideas.map(i => i.embedding));
-  return ideas.map((idea, i) => ({ id: idea.id, text: idea.text, source: idea.source, speaker: idea.speaker, deviceId: idea.deviceId, axisScores: idea.axisScores, createdAt: idea.createdAt, pca: coords[i] }));
+  return ideas.map((idea, i) => ({ id: idea.id, text: idea.text, source: idea.source, speaker: idea.speaker, deviceId: idea.deviceId, axisScores: idea.axisScores, createdAt: idea.createdAt, board: idea.board, color: idea.color, pca: coords[i] }));
 }
 export function mapProvocation(row: Row): Provocation {
   return { id: String(row.id), type: row.type as Provocation["type"], text: String(row.text), status: row.status as Provocation["status"], createdAt: String(row.created_at), why: { pattern: row.type as Provocation["type"], ideaIds: (row.idea_ids ?? []) as string[], ...(row.axis_id ? { axisId: String(row.axis_id) } : {}), explanation: String(row.why) } };
@@ -74,7 +75,7 @@ export function metrics(ideas: StoredIdea[], axes: Axis[]) {
 }
 export async function getState(client: Database, id: string): Promise<SessionState> {
   const data = await loadSession(client, id);
-  return { session: data.session, axes: data.axes.map(publicAxis), ideas: publicIdeas(data.ideas), provocations: data.provocations, ...metrics(data.ideas, data.axes) };
+  return { session: data.session, axes: data.axes.map(publicAxis), ideas: publicIdeas(data.ideas), provocations: data.provocations, ...metrics(data.ideas, data.axes), ...graph(data.ideas) };
 }
 export async function saveScores(client: Database, ideas: StoredIdea[]) {
   // Only update score columns: never overwrite a concurrent contributor's text or metadata.

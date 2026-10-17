@@ -45,6 +45,8 @@ export type Idea = {
   axisScores: Record<string, number>;
   /** Optional 2D PCA overview coords, each roughly in [-1, 1]. */
   pca?: { x: number; y: number };
+  board?: { x: number; y: number };
+  color?: string;
   createdAt: string; // ISO
 };
 
@@ -96,6 +98,9 @@ export type SessionState = {
   provocations: Provocation[]; // oldest first; the current one is the last with status 'shown'
   diversity: number; // 0..100 integer
   diversityBreakdown: DiversityBreakdown;
+  edges?: { a: string; b: string; similarity: number }[];
+  clusters?: { id: string; ideaIds: string[] }[];
+  islands?: string[];
 };
 
 // ---------- Route table ----------
@@ -133,18 +138,23 @@ export type UpdateAxesBody = z.infer<typeof UpdateAxesBody>;
 /** Full replacement; server re-embeds only poles that changed and rescores all ideas. */
 export type UpdateAxesResponse = { axes: Axis[] };
 
+export const BoardPosition = z.object({ x: z.number().finite(), y: z.number().finite() });
+export const UpdateIdeaBody = z.object({ board: BoardPosition });
+
 export const AddIdeasBody = z.object({
   texts: z.array(z.string().trim().min(1).max(IDEA_TEXT_MAX)).min(1).max(20),
   source: z.enum(["typed", "voice", "photo"]).default("typed"),
   speaker: z.string().trim().max(40).optional(),
   deviceId: z.string().optional(),
-});
+  positions: z.array(BoardPosition.nullable()).max(20).optional(),
+  color: z.string().trim().min(1).max(40).optional(),
+}).refine(value => !value.positions || value.positions.length === value.texts.length, { message: "positions must match texts length" });
 export type AddIdeasBody = z.input<typeof AddIdeasBody>;
 export type AddIdeasResponse = {
   ideas: Idea[]; // the newly created ideas
   /** All ideas rescored (z-normalization shifts everyone), so clients replace their list. */
   allIdeas: Idea[];
-  provocation?: Provocation; // present when detection ran and fired
+  provocation?: Provocation | null; // present when detection ran and fired
   diversity: number;
   diversityBreakdown: DiversityBreakdown;
 };
