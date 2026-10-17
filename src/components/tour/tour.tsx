@@ -92,7 +92,7 @@ export function Tour({ initialIndex, initialAutoplay }: Props) {
   const progress = (index + 1) / (LAST + 1);
 
   return (
-    <div className={cn("relative z-[1] flex min-h-dvh flex-col bg-paper text-ink", isVideo && "cursor-none")}>
+    <div className={cn("relative z-[1] flex min-h-dvh flex-col bg-paper text-ink")}>
       <header className="flex items-center justify-between gap-3 border-b border-rule px-4 py-3 sm:px-8">
         <Link href="/" className={cn("rounded-sm font-display text-lg", FOCUS)}>
           Blind Spot <span className="text-ink-faint">· tour</span>

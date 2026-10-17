@@ -28,7 +28,7 @@ export function DemoTour({ autoplay = false, renderStage }: DemoTourProps) {
   const isAuto = tour.mode === "autoplay";
 
   return (
-    <div className={isAuto ? "cursor-none" : undefined}>
+    <div>
       <div aria-hidden={tour.mode === "idle" ? true : undefined} inert={tour.mode === "idle" ? true : undefined}>
         {stage}
       </div>
