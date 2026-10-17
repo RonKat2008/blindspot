@@ -394,7 +394,7 @@ export function Board({ sessionId: initialId }: { sessionId?: string }) {
   function targetFor(item: Item) {
     if (lensReady && item.idea) {
       const pt = lensPoint(item.idea, xAxis.id, yAxis.id, box);
-      return { x: pt.x - STICKY_W / 2, y: pt.y - STICKY_H / 2, rotate: 0, scale: LENS_SCALE };
+      return { x: pt.x - STICKY_W / 2, y: pt.y - STICKY_H / 2, rotate: 0, scale: size.w < 640 ? 0.46 : LENS_SCALE };
     }
     if (lensReady) {
       return { x: box.left + box.width / 2 - STICKY_W / 2, y: box.top + box.height + 4, rotate: 0, scale: 0.5 };
@@ -641,7 +641,7 @@ function ViewTab({ active, onClick, children }: { active: boolean; onClick: () =
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`flex h-8 items-center rounded-full px-3 text-xs font-medium transition-colors ${active ? "bg-ink text-paper-raised" : "text-ink-soft hover:text-ink"}`}
+      className={`flex h-8 items-center rounded-full px-3 text-xs whitespace-nowrap font-medium transition-colors ${active ? "bg-ink text-paper-raised" : "text-ink-soft hover:text-ink"}`}
     >
       {children}
     </button>

@@ -64,13 +64,13 @@ export function QuestionNote({
           animate={reduce ? { opacity: 1 } : "show"}
           exit={reduce ? { opacity: 0 } : "exit"}
           transition={reduce ? reducedTransition : spring.gentle}
-          className="pointer-events-auto relative w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-[20px] bg-[oklch(30%_0.08_255)] p-5 text-[oklch(96%_0.01_85)] shadow-[0_24px_48px_-20px_oklch(25%_0.08_255/0.7)]"
+          className="pointer-events-auto relative w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-[20px] bg-[oklch(30%_0.08_255)] p-4 sm:p-5 text-[oklch(96%_0.01_85)] shadow-[0_24px_48px_-20px_oklch(25%_0.08_255/0.7)]"
         >
           <span aria-hidden className="font-display pointer-events-none absolute -top-6 -right-1 text-[8rem] leading-none text-white/10 italic">
             ?
           </span>
           <p className="text-[11px] font-semibold tracking-[0.14em] text-[oklch(85%_0.1_75)] uppercase">A question for you</p>
-          <p className="font-display mt-2 text-[1.35rem] leading-snug italic sm:text-[1.5rem]">{note.text}</p>
+          <p className="font-display mt-2 text-[1.1rem] leading-snug italic sm:text-[1.5rem]">{note.text}</p>
           <motion.div layout={!reduce} transition={spring.gentle}>
             <button
               type="button"
