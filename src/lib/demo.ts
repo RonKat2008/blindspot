@@ -49,6 +49,8 @@ const PROVOCATION_DELAY_MS = 30_000;
 const SPREAD_CALIBRATION = 1.75;
 const END_SCORE_THRESHOLD = 0.3;
 const END_MIN_IDEAS = 2;
+/** Must match SCORE_SCALE in src/lib/engine/score.ts: raw cos(e,poleB)-cos(e,poleA) of ~0.08 maps to a full ±1. */
+const SCORE_SCALE = 0.08;
 
 const isoAt = (offsetMs: number): string => new Date(DEMO_START_MS + offsetMs).toISOString();
 const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
@@ -85,16 +87,25 @@ export function getDemoAxes(): Axis[] {
   }));
 }
 
+/** Absolute axis score (no per-session normalization), so a one-sided brainstorm shows up as a real gap. */
+function axisScore(embedding: readonly number[], ax: { embeddingA: readonly number[]; embeddingB: readonly number[] }): number {
+  const raw = cosineDistance(embedding, ax.embeddingA) - cosineDistance(embedding, ax.embeddingB);
+  return Math.max(-1, Math.min(1, raw / SCORE_SCALE));
+}
+
 export function getDemoIdeas(): Idea[] {
-  return demoData.ideas.map((idea, j) => ({
-    id: ideaId(j),
-    text: idea.text,
-    source: "typed",
-    speaker: idea.speaker,
-    axisScores: Object.fromEntries(idea.scores.map((s, i) => [axisId(i), s])),
-    pca: { x: idea.scores[0], y: idea.scores[1] },
-    createdAt: isoAt(j * DEMO_IDEA_GAP_MS),
-  }));
+  return demoData.ideas.map((idea, j) => {
+    const scores = demoData.axes.map((ax) => axisScore(idea.embedding, ax));
+    return {
+      id: ideaId(j),
+      text: idea.text,
+      source: "typed",
+      speaker: idea.speaker,
+      axisScores: Object.fromEntries(scores.map((s, i) => [axisId(i), s])),
+      pca: { x: scores[0], y: scores[1] },
+      createdAt: isoAt(j * DEMO_IDEA_GAP_MS),
+    };
+  });
 }
 
 function cosineDistance(a: readonly number[], b: readonly number[]): number {
@@ -150,12 +161,12 @@ export function getDemoProvocations(): Provocation[] {
     {
       id: "demo-p-2",
       type: "gap",
-      text: "All 8 ideas sit on the incremental end, inside the product. What would onboarding look like if it happened somewhere else entirely?",
+      text: "All 8 ideas sit on the incremental end. What would a radical version of onboarding even have to change?",
       why: {
         pattern: "gap",
         ideaIds: ideas.map((i) => i.id),
         axisId: axisId(0),
-        explanation: "No idea sits in the radical, social corner of the map: all 8 stay inside the product.",
+        explanation: "Every idea scores toward “incremental” on the incremental ↔ radical lens; the radical end is empty.",
       },
       status: "shown",
       createdAt: isoAt(8 * DEMO_IDEA_GAP_MS + PROVOCATION_DELAY_MS),
@@ -168,6 +179,7 @@ export function getDemoSessionState(): SessionState {
   const axes = getDemoAxes();
   const ideas = getDemoIdeas();
   const spread = clamp01(meanPairwiseDistance(demoData.ideas.map((i) => i.embedding)) / SPREAD_CALIBRATION);
+  const coverage = computeCoverage(ideas, axes);
   return {
     session: {
       id: DEMO_SESSION_ID,
@@ -178,7 +190,7 @@ export function getDemoSessionState(): SessionState {
     axes,
     ideas,
     provocations: getDemoProvocations(),
-    diversity: Math.round(spread * 100),
-    diversityBreakdown: { spread, coverage: computeCoverage(ideas, axes) },
+    diversity: Math.round((0.6 * spread + 0.4 * coverage) * 100),
+    diversityBreakdown: { spread, coverage },
   };
 }
