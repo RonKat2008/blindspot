@@ -30,6 +30,12 @@ export type BoardSnapshot = {
   whyOpen: boolean;
   freshIds: string[];
   revealId: string | null;
+  /** Optional (tour): open the inspector on this idea. */
+  selectedId?: string | null;
+  /** Optional (tour): show the converge drawer. */
+  converge?: boolean;
+  /** Optional (tour): show the replay timeline. */
+  replay?: boolean;
 };
 
 type LocalNote = QuestionNoteData & { ids: string[] };
@@ -63,11 +69,11 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
   const [coachStep, setCoachStep] = useState(initialId ? 1 : 0);
   const [wrapOpen, setWrapOpen] = useState(false);
   const [digestIds, setDigestIds] = useState<string[]>([]);
-  const [replayOn, setReplayOn] = useState(false);
+  const [replayRaw, setReplayOn] = useState(false);
   const [replayFrame, setReplayFrame] = useState<{ ideas: Set<string>; questions: Set<string> } | null>(null);
-  const [convergeOn, setConvergeOn] = useState(false);
+  const [convergeRaw, setConvergeOn] = useState(false);
   const [assumptionOpen, setAssumptionOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedRaw, setSelectedId] = useState<string | null>(null);
   const [relatedIds, setRelatedIds] = useState<string[]>([]);
   const [inspectHover, setInspectHover] = useState<string | null>(null);
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
@@ -77,6 +83,9 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
   const prompt = snapshot ? snapshot.state.session.prompt : live.prompt;
   const lens = snapshot ? snapshot.view === "lens" : lensRaw;
   const whyOpen = snapshot ? snapshot.whyOpen : whyRaw;
+  const selectedId = snapshot ? snapshot.selectedId ?? null : selectedRaw;
+  const convergeOn = snapshot ? Boolean(snapshot.converge) : convergeRaw;
+  const replayOn = snapshot ? Boolean(snapshot.replay) : replayRaw;
   const sessionId = live.sessionId;
   const hasPrompt = Boolean(prompt);
 
@@ -487,7 +496,7 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
         {convergeOn && state ? (
           <ConvergeDrawer key="converge" state={state} onToggleShortlist={(id, next) => void live.updateIdea(id, { shortlisted: next })} onClose={() => setConvergeOn(false)} />
         ) : null}
-        {selectedId && state && !scripted && !connectFrom ? (
+        {selectedId && state && (!scripted || snapshot?.selectedId) && !connectFrom ? (
           <Inspector
             key="inspector"
             ideaId={selectedId}

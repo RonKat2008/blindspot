@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { Chapter } from "./chapters";
-import { Illustration } from "./illustration";
 
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal-ink";
 
@@ -34,58 +33,52 @@ function TryLink({ href, label }: { href: string; label: string }) {
   );
 }
 
-export function ChapterStage({ chapter, number, total, isVideo }: StageProps) {
+export function ChapterCaption({ chapter, number, total, isVideo }: StageProps) {
   return (
-    <article className="grid min-w-0 items-center gap-8 py-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] xl:gap-12">
-      <div className="min-w-0">
-        <p className="tnum text-xs tracking-[0.14em] text-ink-soft uppercase">
-          Chapter {String(number).padStart(2, "0")} <span className="text-ink-faint">/ {total}</span>
-        </p>
-        <h1
-          style={{ lineHeight: 1.06 }}
-          className={cn(
-            "mt-3 font-display tracking-tight text-balance",
-            isVideo ? "text-[clamp(2.25rem,1.3rem+2.8vw,3.9rem)]" : "text-[clamp(2rem,1.3rem+2.6vw,3.5rem)]",
-          )}
-        >
-          {chapter.title}
-        </h1>
-
-        <dl className={cn("mt-6 space-y-5", isVideo ? "text-[clamp(1.1rem,0.9rem+0.6vw,1.45rem)]" : "text-base sm:text-lg")}>
-          <div>
-            <dt className="text-xs tracking-[0.14em] text-ink-soft uppercase">What it does</dt>
-            <dd className="mt-1 leading-snug text-ink">{chapter.what}</dd>
-          </div>
-          <div className="border-l-2 border-signal pl-4">
-            <dt className="flex flex-wrap items-center gap-2 text-xs tracking-[0.14em] text-signal-ink uppercase">
-              Why it matters
-              <span className="rounded-full bg-signal-wash px-2 py-0.5 tracking-normal normal-case">{chapter.principle}</span>
-            </dt>
-            <dd className="mt-1 font-display leading-snug text-ink italic">{chapter.why}</dd>
-          </div>
-        </dl>
-
-        {chapter.source && (
-          <p className="mt-4 text-xs text-ink-soft">
-            Source:{" "}
-            <a
-              href={chapter.source.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn("rounded-sm underline decoration-rule underline-offset-4 hover:decoration-ink", FOCUS)}
-            >
-              {chapter.source.label}
-            </a>
-          </p>
+    <article className="min-w-0 rounded-2xl border border-rule bg-paper-raised p-5 shadow-[var(--shadow-card)] sm:p-6">
+      <p className="tnum text-xs tracking-[0.14em] text-ink-soft uppercase">
+        Chapter {String(number).padStart(2, "0")} <span className="text-ink-faint">/ {total}</span>
+      </p>
+      <h1
+        style={{ lineHeight: 1.08 }}
+        className={cn(
+          "mt-2 font-display tracking-tight text-balance",
+          isVideo ? "text-[clamp(1.75rem,1.2rem+1.6vw,2.6rem)]" : "text-[clamp(1.6rem,1.2rem+1.3vw,2.25rem)]",
         )}
+      >
+        {chapter.title}
+      </h1>
 
-        <div className="mt-6">
-          <TryLink href={chapter.tryHref} label={`Try it: ${chapter.tryLabel}`} />
+      <dl className={cn("mt-4 space-y-4", isVideo ? "text-[clamp(1.05rem,0.9rem+0.4vw,1.3rem)]" : "text-base")}>
+        <div>
+          <dt className="text-xs tracking-[0.14em] text-ink-soft uppercase">What it does</dt>
+          <dd className="mt-1 leading-snug text-ink">{chapter.what}</dd>
         </div>
-      </div>
+        <div className="border-l-2 border-signal pl-3">
+          <dt className="flex flex-wrap items-center gap-2 text-xs tracking-[0.14em] text-signal-ink uppercase">
+            Why it matters
+            <span className="rounded-full bg-signal-wash px-2 py-0.5 tracking-normal normal-case">{chapter.principle}</span>
+          </dt>
+          <dd className="mt-1 font-display leading-snug text-ink italic">{chapter.why}</dd>
+        </div>
+      </dl>
 
-      <div className="mx-auto w-full max-w-[560px] min-w-0 drop-shadow-[0_12px_32px_oklch(30%_0.04_60/0.12)]">
-        <Illustration name={chapter.key} />
+      {chapter.source && (
+        <p className="mt-3 text-xs text-ink-soft">
+          Source:{" "}
+          <a
+            href={chapter.source.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn("rounded-sm underline decoration-rule underline-offset-4 hover:decoration-ink", FOCUS)}
+          >
+            {chapter.source.label}
+          </a>
+        </p>
+      )}
+
+      <div className="mt-5">
+        <TryLink href={chapter.tryHref} label={`Try it: ${chapter.tryLabel}`} />
       </div>
     </article>
   );
