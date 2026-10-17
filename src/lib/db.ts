@@ -46,11 +46,16 @@ export function publicAxis(axis: AxisWithEmbeddings): Axis {
   return { id: axis.id, poleA: axis.poleA, poleB: axis.poleB, userEdited: axis.userEdited, position: axis.position };
 }
 export function mapIdea(row: Row): StoredIdea {
-  return { id: String(row.id), text: String(row.text), source: row.source as Idea["source"], ...(row.speaker ? { speaker: String(row.speaker) } : {}), ...(row.device_id ? { deviceId: String(row.device_id) } : {}), axisScores: (row.axis_scores ?? {}) as Record<string, number>, createdAt: String(row.created_at), embedding: vector(row.embedding), ...(typeof row.board_x === "number" && typeof row.board_y === "number" ? { board: { x: row.board_x, y: row.board_y } } : {}), ...(typeof row.color === "string" ? { color: row.color } : {}) };
+  return { id: String(row.id), text: String(row.text), source: row.source as Idea["source"], ...(row.speaker ? { speaker: String(row.speaker) } : {}), ...(row.device_id ? { deviceId: String(row.device_id) } : {}), axisScores: (row.axis_scores ?? {}) as Record<string, number>, createdAt: String(row.created_at), embedding: vector(row.embedding), ...(typeof row.board_x === "number" && typeof row.board_y === "number" ? { board: { x: row.board_x, y: row.board_y } } : {}), ...(typeof row.color === "string" ? { color: row.color } : {}), ...(row.kind === "assumption" || row.kind === "idea" ? { kind: row.kind } : {}), ...(typeof row.shortlisted === "boolean" ? { shortlisted: row.shortlisted } : {}), ...mapMedia(row) };
+}
+function mapMedia(row: Row): Pick<Idea, "mediaType" | "mediaUrl" | "mediaCaption"> {
+  const type = row.media_type === "image" || row.media_type === "audio" ? row.media_type : null;
+  if (!type || typeof row.media_url !== "string") return { mediaType: "text" };
+  return { mediaType: type, mediaUrl: row.media_url, ...(typeof row.media_caption === "string" && row.media_caption ? { mediaCaption: row.media_caption } : {}) };
 }
 export function publicIdeas(ideas: StoredIdea[]): Idea[] {
   const coords = pca2(ideas.map(i => i.embedding));
-  return ideas.map((idea, i) => ({ id: idea.id, text: idea.text, source: idea.source, speaker: idea.speaker, deviceId: idea.deviceId, axisScores: idea.axisScores, createdAt: idea.createdAt, board: idea.board, color: idea.color, pca: coords[i] }));
+  return ideas.map((idea, i) => ({ id: idea.id, text: idea.text, source: idea.source, speaker: idea.speaker, deviceId: idea.deviceId, axisScores: idea.axisScores, createdAt: idea.createdAt, board: idea.board, color: idea.color, kind: idea.kind, shortlisted: idea.shortlisted, mediaType: idea.mediaType, mediaUrl: idea.mediaUrl, mediaCaption: idea.mediaCaption, pca: coords[i] }));
 }
 export function mapProvocation(row: Row): Provocation {
   return { id: String(row.id), type: row.type as Provocation["type"], text: String(row.text), status: row.status as Provocation["status"], createdAt: String(row.created_at), why: { pattern: row.type as Provocation["type"], ideaIds: (row.idea_ids ?? []) as string[], ...(row.axis_id ? { axisId: String(row.axis_id) } : {}), explanation: String(row.why) } };
