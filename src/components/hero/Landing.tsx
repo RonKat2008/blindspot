@@ -86,7 +86,7 @@ export function Landing() {
           <Reveal className={styles.whyStory}>
             <h2 id="why-heading" className={styles.label}>Why we built this</h2>
             {/* FOUNDER_STORY */}
-            <p className={styles.story}>[Your story: when you noticed AI narrowing your team&rsquo;s ideas]</p>
+            <p className={styles.story}>When everyone asks the same model, everyone gets the same answer.</p>
           </Reveal>
           <Reveal className={styles.decided} delay={0.08}>
             <p className={styles.decidedTitle}>Built with AI, decided by humans</p>

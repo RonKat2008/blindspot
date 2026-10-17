@@ -67,7 +67,7 @@ function Why() {
       {/* FOUNDER_STORY */}
       <Item className="mt-8 max-w-xl rotate-[-1.5deg] rounded-sm bg-[#f6e7a8] px-5 py-4 shadow-[2px_3px_0_color-mix(in_oklch,var(--ink)_18%,transparent)]">
         <p className="font-display text-[clamp(1.15rem,1rem+0.6vw,1.5rem)] leading-snug text-[var(--ink)]">
-          [Your story: when you noticed AI narrowing your team&apos;s ideas]
+          When everyone asks the same model, everyone gets the same answer.
         </p>
       </Item>
     </Stage>

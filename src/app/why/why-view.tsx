@@ -61,7 +61,7 @@ function FounderStory() {
       <Eyebrow>Why we built it</Eyebrow>
       {/* FOUNDER_STORY */}
       <p className="mt-3 font-display text-[length:var(--text-question)] leading-snug text-ink">
-        [Your story: when you noticed AI narrowing your team&apos;s ideas]
+        When everyone asks the same model, everyone gets the same answer.
       </p>
       <p className="mt-4 text-sm leading-relaxed text-ink-soft">
         Microsoft Research found that generative AI narrows the range of ideas
