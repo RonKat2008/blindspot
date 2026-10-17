@@ -5,9 +5,18 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { SessionState } from "@/lib/contract";
 import { ScatterMap } from "@/components/scatter-map";
+import { ShareSnapshot } from "@/components/share/share-snapshot";
 import { reducedTransition, spring } from "@/lib/motion";
 
-export function WrapUp({ state, onClose }: { state: SessionState; onClose: () => void }) {
+export function WrapUp({
+  state,
+  onClose,
+  getBoardElement,
+}: {
+  state: SessionState;
+  onClose: () => void;
+  getBoardElement: () => HTMLElement | null;
+}) {
   const reduce = useReducedMotion();
   const asked = state.provocations.length;
   const taken = state.provocations.filter((p) => p.status === "accepted").length;
@@ -61,6 +70,7 @@ export function WrapUp({ state, onClose }: { state: SessionState; onClose: () =>
             <Button type="button" className="h-10 px-4" onClick={() => void copy()}>
               Copy ideas
             </Button>
+            <ShareSnapshot state={state} getBoardElement={getBoardElement} />
             <Button type="button" variant="ghost" className="h-10 px-4" onClick={onClose} autoFocus>
               Back to the board
             </Button>

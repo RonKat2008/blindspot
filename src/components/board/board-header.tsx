@@ -183,14 +183,20 @@ export function LensChips({
   );
 }
 
-export function InviteButton({ sessionId }: { sessionId: string | null }) {
+export function PhoneQrButton({ sessionId }: { sessionId: string | null }) {
   const [open, setOpen] = useState(false);
   if (!sessionId) return null;
   const url = typeof window === "undefined" ? `/join/${sessionId}` : `${window.location.origin}/join/${sessionId}`;
   return (
     <div className="relative">
-      <Button type="button" variant="ghost" className="h-8 px-2.5" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        Invite
+      <Button type="button" variant="ghost" className="h-8 px-2.5" aria-expanded={open} title="Add ideas from a phone" onClick={() => setOpen((v) => !v)}>
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden fill="currentColor">
+          <rect x="1" y="1" width="5" height="5" rx="1" />
+          <rect x="8" y="1" width="5" height="5" rx="1" />
+          <rect x="1" y="8" width="5" height="5" rx="1" />
+          <rect x="9" y="9" width="3" height="3" />
+        </svg>
+        <span className="max-sm:sr-only">Phone</span>
       </Button>
       <AnimatePresence>
         {open ? (
