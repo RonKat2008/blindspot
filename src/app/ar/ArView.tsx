@@ -91,8 +91,8 @@ export function ArView({ sessionId }: { sessionId: string }) {
       document.addEventListener("visibilitychange", onVisibility);
       // If no motion data arrives (desktop, denied), tell the user they can drag instead.
       setTimeout(() => {
-        if (!disposed && !scene.hasOrientation()) {
-          setNotes((n) => (n.some((x) => x.startsWith("Drag")) ? n : [...n, "Drag to look around."]));
+        if (!disposed && motionGrantedRef.current && !scene.hasOrientation()) {
+          setNotes((n) => [...n, "No motion sensor here — drag to look around."]);
         }
       }, 1500);
     });
