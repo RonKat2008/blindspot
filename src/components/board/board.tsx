@@ -1,86 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion, MotionConfig } from "motion/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence } from "motion/react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { RealityButton } from "@/components/reality-button";
-import { api } from "@/lib/api-client";
-import type { Idea, Provocation, SessionState } from "@/lib/contract";
-import type { AuthoredIdea } from "@/lib/supabase/account-types";
-import { AccountMenu } from "@/components/account/account-menu";
 import { AwayDigest } from "@/components/account/away-digest";
-import { InviteButton } from "@/components/account/invite-button";
-import { LensChips, PhoneQrButton, PromptEntry } from "./board-header";
-import type { HumanLink, PosMap, QuadKey } from "./board-utils";
-import {
-  connectionsOf,
-  hasEdge,
-  LENS_SCALE,
-  lensPoint,
-  nextFreeSpot,
-  plotBox,
-  quadOf,
-  randomRot,
-  STICKY_H,
-  STICKY_W,
-  stickyColor,
-  store,
-} from "./board-utils";
-import { BoardCoach, QuestionNote, type QuestionNoteData, RangeMeter, toNote } from "./chrome";
-import { ConnectionsLayer, LensGrid } from "./layers";
-import { DraftSticky, Sticky } from "./sticky";
-import { WrapUp } from "./wrap-up";
-import { AssumptionWriter, ConvergeDrawer, patchIdea } from "./extras";
+import { RealityButton } from "@/components/reality-button";
 import { ReplayTimeline } from "@/components/replay/replay-timeline";
-import { AssumptionCard } from "@/components/assumption/assumption-card";
+import type { Provocation, SessionState } from "@/lib/contract";
+import type { AuthoredIdea } from "@/lib/supabase/account-types";
+import { PromptEntry } from "./board-header";
+import type { HumanLink, QuadKey } from "./board-utils";
+import { connectionsOf, hasEdge, plotBox, quadOf, stickyColor, store } from "./board-utils";
+import { BoardCoach, QuestionNote, type QuestionNoteData, RangeMeter, toNote } from "./chrome";
+import { AssumptionWriter, ConvergeDrawer } from "./extras";
 import { Inspector } from "./inspector";
-import { addMediaIdea, deleteIdea, type MediaIdea, type MediaType } from "./media";
+import type { MediaIdea, MediaType } from "./media";
 import { MediaComposer, type MediaDraft, type PlacedMedia, useRecorder } from "./media-composer";
-import { AxisPick, Toolbar } from "./toolbar";
-import { usePanZoom } from "./use-pan-zoom";
-
-type PendingMedia = PlacedMedia["media"];
-type Pending = { tempId: string; text: string; media?: PendingMedia };
-type Draft = { x: number; y: number; text: string };
-
-const POLL_MS = 5000;
-const ERR_ADD = "Couldn't reach the map. Your idea is safe — try again.";
-
-function usableWidth(width: number): number {
-  return width >= 1024 ? width - 400 : width;
-}
-
-function placeMissing(ideas: Idea[], positions: PosMap, width: number): PosMap {
-  const missing = ideas.filter((i) => !positions[i.id]);
-  if (!missing.length) return positions;
-  const next = { ...positions };
-  for (const idea of missing) next[idea.id] = nextFreeSpot(Object.values(next), usableWidth(width));
-  return next;
-}
-
-/** Deterministic board layout (scripted mode): grid order, rotation hashed from the id. */
-function autoLayout(ideas: Idea[], width: number): PosMap {
-  const out: PosMap = {};
-  for (const idea of ideas) {
-    const spot = nextFreeSpot(Object.values(out), usableWidth(width));
-    let h = 0;
-    for (const ch of idea.id) h = (h * 33 + ch.charCodeAt(0)) >>> 0;
-    out[idea.id] = { x: spot.x, y: spot.y, rot: ((h % 60) - 30) / 10 };
-  }
-  return out;
-}
-
-function emptyState(id: string, prompt: string, axes: SessionState["axes"]): SessionState {
-  return {
-    session: { id, prompt, teamName: null, createdAt: new Date().toISOString() },
-    axes,
-    ideas: [],
-    provocations: [],
-    diversity: 0,
-    diversityBreakdown: { spread: 0, coverage: 0 },
-  };
-}
+import { ThoughtInput } from "./thought-input";
+import { type MapItem, ThoughtMap } from "./thought-map";
+import { AxisPick } from "./toolbar";
+import { TopBar } from "./top-bar";
+import { useBoardSession } from "./use-board-session";
+import { WrapUp } from "./wrap-up";
 
 export type BoardSnapshot = {
   state: SessionState;
@@ -91,39 +32,36 @@ export type BoardSnapshot = {
   revealId: string | null;
 };
 
+type LocalNote = QuestionNoteData & { ids: string[] };
+
+function isTyping(): boolean {
+  const el = document.activeElement;
+  return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement || Boolean((el as HTMLElement | null)?.isContentEditable);
+}
+
 /**
- * The whiteboard. Live mode: pass `sessionId` (or nothing for a fresh board).
- * Scripted mode: pass `snapshot` (the /demo tour) — no network, no input, layout is deterministic.
+ * The thought map. Live mode: pass `sessionId` (or nothing for a fresh board).
+ * Scripted mode: pass `snapshot` (the /demo tour) — no network, no input, deterministic layout.
  */
 export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; snapshot?: BoardSnapshot }) {
+  const scripted = Boolean(snapshot);
+  const live = useBoardSession(initialId, !scripted);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const surfaceRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const recorder = useRecorder();
 
-  const [sessionId, setSessionId] = useState<string | null>(initialId ?? null);
-  const [promptRaw, setPrompt] = useState<string | null>(null);
-  const [stateRaw, setState] = useState<SessionState | null>(null);
-  const [loading, setLoading] = useState(Boolean(initialId));
-  const [finding, setFinding] = useState(false);
-  const [savingAxes, setSavingAxes] = useState(false);
-  const [posRaw, setPositions] = useState<PosMap>({});
-  const [keyMap, setKeyMap] = useState<Record<string, string>>({});
-  const [pending, setPending] = useState<Pending[]>([]);
-  const [draft, setDraft] = useState<Draft | null>(null);
   const [lensRaw, setLens] = useState(false);
   const [xId, setXId] = useState<string | null>(null);
   const [yId, setYId] = useState<string | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [whyRaw, setWhyOpen] = useState(false);
-  const [localNote, setLocalNote] = useState<(QuestionNoteData & { ids: string[] }) | null>(null);
-  const [links, setLinks] = useState<HumanLink[]>([]);
-  const [dragging, setDragging] = useState<{ id: string; dx: number; dy: number } | null>(null);
-  const [linkDrag, setLinkDrag] = useState<{ from: string; x: number; y: number } | null>(null);
+  const [localNote, setLocalNote] = useState<LocalNote | null>(null);
+  const [links, setLinks] = useState<HumanLink[]>(() => (initialId && typeof window !== "undefined" ? store.links(initialId) : []));
   const [showConn, setShowConn] = useState(true);
   const [size, setSize] = useState({ w: 1200, h: 700 });
   const [quad, setQuad] = useState<QuadKey | null>(null);
   const [coachStep, setCoachStep] = useState(initialId ? 1 : 0);
   const [wrapOpen, setWrapOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [digestIds, setDigestIds] = useState<string[]>([]);
   const [replayOn, setReplayOn] = useState(false);
   const [replayFrame, setReplayFrame] = useState<{ ideas: Set<string>; questions: Set<string> } | null>(null);
@@ -132,419 +70,89 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [relatedIds, setRelatedIds] = useState<string[]>([]);
   const [inspectHover, setInspectHover] = useState<string | null>(null);
+  const [connectFrom, setConnectFrom] = useState<string | null>(null);
   const [mediaDraft, setMediaDraft] = useState<MediaDraft | null>(null);
-  const [hidden, setHidden] = useState<string[]>([]);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const recorder = useRecorder();
-  const scripted = Boolean(snapshot);
-  const state = snapshot ? snapshot.state : stateRaw;
-  const prompt = snapshot ? snapshot.state.session.prompt : promptRaw;
+
+  const state = snapshot ? snapshot.state : live.state;
+  const prompt = snapshot ? snapshot.state.session.prompt : live.prompt;
   const lens = snapshot ? snapshot.view === "lens" : lensRaw;
   const whyOpen = snapshot ? snapshot.whyOpen : whyRaw;
-  const { zoom, setZoom, panning } = usePanZoom(viewportRef, !lens && !scripted);
-  const positions = useMemo(
-    () => (snapshot ? autoLayout(snapshot.state.ideas, size.w) : posRaw),
-    [snapshot, size.w, posRaw],
-  );
-  const freshRef = useRef<Set<string>>(new Set());
-  const lastMutation = useRef(0);
-  const sessionRef = useRef<string | null>(initialId ?? null);
-  const queuedRef = useRef<Pending[]>([]);
-  const suppressClick = useRef(false);
+  const sessionId = live.sessionId;
+  const hasPrompt = Boolean(prompt);
 
-  // ---- measure the board viewport
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      setSize({ w: entry.contentRect.width, h: entry.contentRect.height });
-    });
+    const ro = new ResizeObserver(([entry]) => setSize({ w: entry.contentRect.width, h: entry.contentRect.height }));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  const applyState = useCallback((next: SessionState) => {
-    setState(next);
-    setPrompt(next.session.prompt);
-    setXId((cur) => (cur && next.axes.some((a) => a.id === cur) ? cur : next.axes[0]?.id ?? null));
-    setYId((cur) => (cur && next.axes.some((a) => a.id === cur) ? cur : next.axes[1]?.id ?? next.axes[0]?.id ?? null));
-    const w = viewportRef.current?.clientWidth ?? 1200;
-    setPositions((prev) => placeMissing(next.ideas, prev, w));
-  }, []);
-
-  // ---- load an existing session
-  useEffect(() => {
-    if (!initialId) return;
-    let cancelled = false;
-    api
-      .getState(initialId)
-      .then((next) => {
-        if (cancelled) return;
-        setPositions(store.positions(initialId));
-        setLinks(store.links(initialId));
-        applyState(next);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) toast(err instanceof Error ? err.message : "Couldn't open this board.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [initialId, applyState]);
-
-  // ---- poll so phone contributions show up
-  useEffect(() => {
-    if (!sessionId) return;
-    const id = window.setInterval(() => {
-      if (document.hidden) return;
-      const started = Date.now();
-      api
-        .getState(sessionId)
-        .then((next) => {
-          if (lastMutation.current > started) return;
-          applyState(next);
-        })
-        .catch(() => undefined);
-    }, POLL_MS);
-    return () => window.clearInterval(id);
-  }, [sessionId, applyState]);
-
-  // ---- persist board-only data
-  useEffect(() => {
-    if (sessionId) store.savePositions(sessionId, positions);
-  }, [sessionId, positions]);
   useEffect(() => {
     if (sessionId) store.saveLinks(sessionId, links);
   }, [sessionId, links]);
 
-  // ---- ideas
-  const postIdea = useCallback(
-    async (sid: string, tempId: string, text: string, media?: PendingMedia) => {
-      try {
-        const res = media
-          ? await addMediaIdea(sid, { text, mediaType: media.mediaType, mediaUrl: media.mediaUrl, caption: media.caption })
-          : await api.addIdeas(sid, { texts: [text], source: "typed" });
-        lastMutation.current = Date.now();
-        const landed = res.ideas[0];
-        if (landed) {
-          setKeyMap((m) => ({ ...m, [landed.id]: tempId }));
-          setPositions((p) => (p[tempId] ? { ...p, [landed.id]: p[tempId] } : p));
-        }
-        setPending((list) => list.filter((x) => x.tempId !== tempId));
-        setState((prev) => {
-          if (!prev) return prev;
-          if (res.diversity - prev.diversity >= 5) toast(`New ground. Range ${prev.diversity} → ${res.diversity}.`);
-          return {
-            ...prev,
-            ideas: res.allIdeas,
-            diversity: res.diversity,
-            diversityBreakdown: res.diversityBreakdown,
-            provocations: res.provocation ? [...prev.provocations, res.provocation] : prev.provocations,
-          };
-        });
-        if (res.provocation) setWhyOpen(false);
-      } catch {
-        setPending((list) => list.filter((x) => x.tempId !== tempId));
-        toast(ERR_ADD, {
-          action: { label: "Retry", onClick: () => addIdea(text) },
-        });
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
-  const addIdea = useCallback(
-    (text: string, at?: { x: number; y: number }, media?: PendingMedia) => {
-      const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      freshRef.current.add(tempId);
-      setPositions((p) => ({
-        ...p,
-        [tempId]: at ? { ...at, rot: randomRot() } : nextFreeSpot(Object.values(p), usableWidth(viewportRef.current?.clientWidth ?? 1200)),
-      }));
-      setPending((list) => [...list, { tempId, text, media }]);
-      if (coachStep === 1) setCoachStep(2);
-      const sid = sessionRef.current;
-      if (sid) void postIdea(sid, tempId, text, media);
-      else queuedRef.current.push({ tempId, text, media });
-    },
-    [postIdea, coachStep],
-  );
-
-  // ---- create the session from the heading
-  async function startSession(value: string) {
-    setPrompt(value);
-    setFinding(true);
-    setCoachStep((s) => Math.max(s, 1));
-    try {
-      const { sessionId: sid, axes } = await api.createSession({ prompt: value });
-      sessionRef.current = sid;
-      setSessionId(sid);
-      setState(emptyState(sid, value, axes));
-      setXId(axes[0]?.id ?? null);
-      setYId(axes[1]?.id ?? axes[0]?.id ?? null);
-      window.history.replaceState(null, "", `/s/${sid}`);
-      // flush anything typed while lenses were loading
-      const queued = queuedRef.current;
-      queuedRef.current = [];
-      queued.forEach((p) => void postIdea(sid, p.tempId, p.text, p.media));
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Couldn't start the board. Try again.");
-      setPrompt(null);
-    } finally {
-      setFinding(false);
-    }
-  }
-
-  async function saveAxes(next: { id?: string; poleA: string; poleB: string }[]) {
-    const sid = sessionRef.current;
-    if (!sid) return;
-    setSavingAxes(true);
-    try {
-      await api.updateAxes(sid, { axes: next });
-      lastMutation.current = Date.now();
-      applyState(await api.getState(sid));
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Couldn't save that lens.");
-    } finally {
-      setSavingAxes(false);
-    }
-  }
-
-  // ---- provocations
+  // ---- derived
+  const axes = state?.axes ?? [];
+  const xAxis = axes.find((a) => a.id === xId) ?? axes[0];
+  const yAxis = axes.find((a) => a.id === yId) ?? axes[1] ?? axes[0];
+  const ideas = state?.ideas ?? [];
+  const textOf = useCallback((id: string) => state?.ideas.find((i) => i.id === id)?.text, [state]);
   const current = state
     ? [...state.provocations].reverse().find((p) => p.status === "shown" && (!replayFrame || replayFrame.questions.has(p.id))) ?? null
     : null;
-  const textOf = useCallback((id: string) => state?.ideas.find((i) => i.id === id)?.text, [state]);
   const note: QuestionNoteData | null = localNote ?? (current ? toNote(current, textOf) : null);
+  const { edges, clusters, islands } = connectionsOf(state);
+  const lensReady = lens && xAxis && yAxis ? { xAxis, yAxis } : null;
+  const box = plotBox(size.w, size.h, note && size.w >= 1024 ? 390 : 0);
 
-  async function resolveNote(status: "accepted" | "dismissed") {
-    setWhyOpen(false);
-    if (localNote) {
-      setLocalNote(null);
-      if (status === "accepted") openDraftAtFreeSpot("");
-      return;
-    }
-    if (!current) return;
-    setBusy(true);
-    try {
-      await api.updateProvocation(current.id, { status });
-      lastMutation.current = Date.now();
-      setState((prev) =>
-        prev ? { ...prev, provocations: prev.provocations.map((p) => (p.id === current.id ? { ...p, status } : p)) } : prev,
-      );
-      if (status === "accepted") {
-        if (current.type === "assumption") setAssumptionOpen(true);
-        else openDraftAtFreeSpot("");
-      }
-    } catch {
-      toast("Couldn't save that. Try again.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const hiddenSet = new Set(live.hidden);
+  const claimed = new Set(Object.values(live.keyMap));
+  const freshIds = new Set(snapshot?.freshIds ?? []);
+  const allItems: MapItem[] = [
+    ...ideas
+      .filter((i) => !hiddenSet.has(i.id))
+      .map((i) => {
+        const m = i as MediaIdea & AuthoredIdea;
+        const key = live.keyMap[i.id] ?? i.id;
+        return {
+          key,
+          id: i.id,
+          text: i.text,
+          color: m.authorColor ?? (i.speaker ? stickyInk(i.speaker) : "var(--ink)"),
+          idea: i,
+          media: m.mediaType ? { type: m.mediaType, url: m.mediaUrl } : undefined,
+          isPending: false,
+          isFresh: freshIds.has(i.id) || key !== i.id,
+        };
+      }),
+    ...(scripted
+      ? []
+      : live.pending
+          .filter((p) => !claimed.has(p.tempId))
+          .map((p) => ({
+            key: p.tempId,
+            id: p.tempId,
+            text: p.text,
+            color: "var(--ink-soft)",
+            media: p.media ? { type: p.media.mediaType, url: p.media.mediaUrl } : undefined,
+            isPending: true,
+            isFresh: true,
+          }))),
+  ];
+  const items = replayFrame ? allItems.filter((i) => i.isPending || replayFrame.ideas.has(i.id)) : allItems;
 
-  async function toggleShortlist(ideaId: string, next: boolean) {
-    setState((prev) => (prev ? { ...prev, ideas: prev.ideas.map((i) => (i.id === ideaId ? { ...i, shortlisted: next } : i)) } : prev));
-    lastMutation.current = Date.now();
-    try {
-      await patchIdea(ideaId, { shortlisted: next });
-    } catch {
-      setState((prev) => (prev ? { ...prev, ideas: prev.ideas.map((i) => (i.id === ideaId ? { ...i, shortlisted: !next } : i)) } : prev));
-      toast("Couldn't save the shortlist. Try again.");
-    }
-  }
+  const highlightIds: string[] = selectedId
+    ? [selectedId, ...relatedIds]
+    : localNote
+      ? localNote.ids
+      : whyOpen && current
+        ? current.why.ideaIds
+        : digestIds;
+  const occupied = new Set<QuadKey>(lensReady ? ideas.map((i) => quadOf(i, lensReady.xAxis.id, lensReady.yAxis.id)) : []);
+  const quadIdeas = lensReady && quad ? ideas.filter((i) => quadOf(i, lensReady.xAxis.id, lensReady.yAxis.id) === quad) : [];
 
-  async function postAssumption(text: string) {
-    const sid = sessionRef.current;
-    if (!sid) return;
-    try {
-      const res = await api.addIdeas(sid, { texts: [text], source: "typed" });
-      const created = res.ideas[0];
-      if (created) await patchIdea(created.id, { kind: "assumption" });
-      lastMutation.current = Date.now();
-      applyState(await api.getState(sid));
-      setAssumptionOpen(false);
-    } catch {
-      toast(ERR_ADD);
-    }
-  }
-
-  const onReplayFrame = useCallback((ideaIds: string[], questionIds: string[]) => {
-    setReplayFrame((prev) => {
-      const same =
-        prev && prev.ideas.size === ideaIds.length && prev.questions.size === questionIds.length && ideaIds.every((id) => prev.ideas.has(id));
-      return same ? prev : { ideas: new Set(ideaIds), questions: new Set(questionIds) };
-    });
-  }, []);
-
-  // ---- media points (image / voice)
-  function openMedia(blob: Blob, name: string, mediaType: MediaType, at?: { x: number; y: number }) {
-    if (!prompt || scripted) return;
-    if (!sessionRef.current) {
-      toast("One moment — the board is still being set up.");
-      return;
-    }
-    setMediaDraft({ blob, name, mediaType, at });
-  }
-
-  async function startRecording() {
-    if (!prompt) return;
-    const ok = await recorder.start();
-    if (!ok) toast("Couldn't reach a microphone. Check the browser permission.");
-  }
-
-  async function stopRecording() {
-    const blob = await recorder.stop();
-    if (blob) openMedia(blob, "voice-note.webm", "audio");
-  }
-
-  function placeMedia(placed: PlacedMedia) {
-    const at = mediaDraft?.at;
-    setMediaDraft(null);
-    addIdea(placed.label, at, placed.media);
-  }
-
-  async function markAssumption(id: string) {
-    setState((prev) => (prev ? { ...prev, ideas: prev.ideas.map((i) => (i.id === id ? { ...i, kind: "assumption" } : i)) } : prev));
-    lastMutation.current = Date.now();
-    try {
-      await patchIdea(id, { kind: "assumption" });
-    } catch {
-      toast("Couldn't save that. Try again.");
-    }
-  }
-
-  async function removeIdea(id: string) {
-    setSelectedId(null);
-    setHidden((h) => [...h, id]);
-    try {
-      await deleteIdea(id);
-      lastMutation.current = Date.now();
-    } catch {
-      toast("Hidden on this screen. Deleting for everyone isn't available yet.");
-    }
-  }
-
-  function jumpTo(id: string) {
-    setSelectedId(id);
-    const vp = viewportRef.current;
-    const pos = positions[id];
-    if (!vp || !pos || lens) return;
-    vp.scrollTo({ left: pos.x * zoom - vp.clientWidth / 2 + STICKY_W / 2, top: pos.y * zoom - vp.clientHeight / 2, behavior: "smooth" });
-  }
-
-  // ---- drafting
-  function openDraftAtFreeSpot(initial: string) {
-    if (lens) setLens(false);
-    const vp = viewportRef.current;
-    const spot = nextFreeSpot(Object.values(positions), usableWidth(vp?.clientWidth ?? 1200), (vp?.scrollTop ?? 0) + 24);
-    setDraft({ x: spot.x, y: spot.y, text: initial });
-  }
-
-  function onSurfaceClick(e: React.MouseEvent) {
-    if (scripted) return;
-    if (suppressClick.current) {
-      suppressClick.current = false;
-      return;
-    }
-    if (lens) {
-      setQuad(null);
-      return;
-    }
-    if (!prompt) {
-      document.getElementById("bs-prompt")?.focus();
-      toast("Start with your question up top.");
-      return;
-    }
-    if (draft) return;
-    const rect = surfaceRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    if (selectedId) {
-      setSelectedId(null);
-      return;
-    }
-    setDraft({
-      x: Math.max(8, (e.clientX - rect.left) / zoom - STICKY_W / 2),
-      y: Math.max(8, (e.clientY - rect.top) / zoom - 24),
-      text: "",
-    });
-  }
-
-  // ---- keyboard: L lens, C connections, type-to-add
-  useEffect(() => {
-    if (scripted) return;
-    const onKey = (e: KeyboardEvent) => {
-      const el = document.activeElement;
-      const typing = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || (el as HTMLElement | null)?.isContentEditable;
-      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === "Escape") {
-        setWhyOpen(false);
-        setQuad(null);
-        return;
-      }
-      if (!prompt) return;
-      if (e.key === "l" || e.key === "L") {
-        e.preventDefault();
-        setLens((v) => !v);
-        if (coachStep === 2) setCoachStep(3);
-        return;
-      }
-      if (e.key === "c" || e.key === "C") {
-        e.preventDefault();
-        setShowConn((v) => !v);
-        return;
-      }
-      if (e.key === "t" || e.key === "T") {
-        e.preventDefault();
-        openDraftAtFreeSpot("");
-        return;
-      }
-      if (e.key === "i" || e.key === "I") {
-        e.preventDefault();
-        fileRef.current?.click();
-        return;
-      }
-      if ((e.key === "r" || e.key === "R") && !e.repeat) {
-        e.preventDefault();
-        void (recorder.recording ? stopRecording() : startRecording());
-        return;
-      }
-      if (e.key.length === 1 && /\S/.test(e.key) && !draft && !wrapOpen) {
-        e.preventDefault();
-        openDraftAtFreeSpot(e.key);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
-
-  // ---- paste an image anywhere on the board
-  useEffect(() => {
-    if (scripted) return;
-    const onPaste = (e: ClipboardEvent) => {
-      const el = document.activeElement;
-      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return;
-      const file = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith("image/"));
-      if (!file) return;
-      e.preventDefault();
-      openMedia(file, file.name || "pasted.png", "image");
-    };
-    window.addEventListener("paste", onPaste);
-    return () => window.removeEventListener("paste", onPaste);
-  });
-
-  function stickyMedia(item: { idea?: Idea; media?: PendingMedia }) {
-    const m = item.idea as MediaIdea | undefined;
-    if (m?.mediaType) return { type: m.mediaType, url: m.mediaUrl, caption: m.mediaCaption };
-    if (item.media) return { type: item.media.mediaType, url: item.media.mediaUrl, caption: item.media.caption };
-    return undefined;
-  }
-
-  // ---- human links: the server may answer with a bridge question (never an idea)
+  // ---- linking points (select, then shift+click or "Connect to…")
   async function askBridge(sid: string, a: string, b: string) {
     try {
       const res = await fetch("/api/provocations/bridge", {
@@ -554,153 +162,169 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
       });
       const data = (await res.json()) as { provocation?: Provocation | null };
       if (!res.ok || !data.provocation) return;
-      const p = data.provocation;
-      lastMutation.current = Date.now();
       setLocalNote(null);
       setWhyOpen(true);
-      setState((prev) => (prev && !prev.provocations.some((x) => x.id === p.id) ? { ...prev, provocations: [...prev.provocations, p] } : prev));
+      live.addProvocation(data.provocation);
     } catch {
-      // The link itself is saved locally; a missing question is fine.
+      // the link is saved locally; a missing question is fine
     }
   }
 
-  function onLinkStart(from: string, e: React.PointerEvent) {
-    const rect = surfaceRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const z = zoom;
-    setLinkDrag({ from, x: (e.clientX - rect.left) / z, y: (e.clientY - rect.top) / z });
-    const move = (ev: PointerEvent) => setLinkDrag({ from, x: (ev.clientX - rect.left) / z, y: (ev.clientY - rect.top) / z });
-    const up = (ev: PointerEvent) => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      setLinkDrag(null);
-      suppressClick.current = true;
-      window.setTimeout(() => {
-        suppressClick.current = false;
-      }, 300);
-      const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest("[data-sticky-id]")?.getAttribute("data-sticky-id");
-      if (!target || target === from || target.startsWith("tmp-") || from.startsWith("tmp-")) return;
-      setLinks((list) =>
-        list.some((l) => (l.a === from && l.b === target) || (l.a === target && l.b === from)) ? list : [...list, { a: from, b: target }],
-      );
-      const { edges } = connectionsOf(state);
-      const sid = sessionRef.current;
-      if (sid) void askBridge(sid, from, target);
-      if (!hasEdge(edges, from, target)) {
-        const a = textOf(from) ?? "";
-        const b = textOf(target) ?? "";
-        setLocalNote({
-          id: `link-${from}-${target}`,
-          text: `You connected “${a}” and “${b}”. What bridges them?`,
-          patternName: "Your own connection",
-          explanation: "Nothing in the map links these two yet. The bridge is yours to name.",
-          refTexts: [a, b],
-          local: true,
-          ids: [from, target],
-        });
+  function connect(a: string, b: string) {
+    if (a === b || a.startsWith("tmp-") || b.startsWith("tmp-")) return;
+    setLinks((list) => (list.some((l) => (l.a === a && l.b === b) || (l.a === b && l.b === a)) ? list : [...list, { a, b }]));
+    setConnectFrom(null);
+    toast("Connected.");
+    if (!hasEdge(edges, a, b)) {
+      const ta = textOf(a) ?? "";
+      const tb = textOf(b) ?? "";
+      setLocalNote({
+        id: `link-${a}-${b}`,
+        text: `You connected “${ta}” and “${tb}”. What bridges them?`,
+        patternName: "Your own connection",
+        explanation: "Nothing in the map links these two yet. The bridge is yours to name.",
+        refTexts: [ta, tb],
+        local: true,
+        ids: [a, b],
+      });
+    }
+    if (sessionId) void askBridge(sessionId, a, b);
+  }
+
+  function onSelect(id: string, additive: boolean) {
+    if (connectFrom) return connect(connectFrom, id);
+    if (additive && selectedId && selectedId !== id) return connect(selectedId, id);
+    setSelectedId(id);
+  }
+
+  // ---- questions
+  async function resolveNote(status: "accepted" | "dismissed") {
+    setWhyOpen(false);
+    if (localNote) {
+      setLocalNote(null);
+      if (status === "accepted") document.getElementById("bs-thought")?.focus();
+      return;
+    }
+    if (!current) return;
+    const ok = await live.setProvocation(current, status);
+    if (!ok || status !== "accepted") return;
+    if (current.type === "assumption") setAssumptionOpen(true);
+    else document.getElementById("bs-thought")?.focus();
+  }
+
+  // ---- media points
+  function openMedia(blob: Blob, name: string, mediaType: MediaType) {
+    if (!prompt || scripted) return;
+    if (!live.sessionRef.current) {
+      toast("One moment — the board is still being set up.");
+      return;
+    }
+    setMediaDraft({ blob, name, mediaType });
+  }
+  async function startRecording() {
+    if (!prompt) return;
+    if (!(await recorder.start())) toast("Couldn't reach a microphone. Check the browser permission.");
+  }
+  async function stopRecording() {
+    const blob = await recorder.stop();
+    if (blob) openMedia(blob, "voice-note.webm", "audio");
+  }
+  function placeMedia(placed: PlacedMedia) {
+    setMediaDraft(null);
+    live.addIdea(placed.label, placed.media);
+  }
+
+  function addThought(text: string) {
+    live.addIdea(text);
+    if (coachStep === 1) setCoachStep(2);
+  }
+
+  const onReplayFrame = useCallback((ideaIds: string[], questionIds: string[]) => {
+    setReplayFrame((prev) => {
+      const same = prev && prev.ideas.size === ideaIds.length && prev.questions.size === questionIds.length && ideaIds.every((id) => prev.ideas.has(id));
+      return same ? prev : { ideas: new Set(ideaIds), questions: new Set(questionIds) };
+    });
+  }, []);
+
+  function toggleLens(next: boolean) {
+    setLens(next);
+    if (next && coachStep === 2) setCoachStep(3);
+  }
+
+  // ---- keyboard + paste
+  useEffect(() => {
+    if (scripted) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setConnectFrom(null);
+        setWhyOpen(false);
+        setQuad(null);
+        return;
       }
+      if (isTyping() || e.metaKey || e.ctrlKey || e.altKey || !prompt) return;
+      const k = e.key.toLowerCase();
+      if (k === "l") toggleLens(!lens);
+      else if (k === "c") setShowConn((v) => !v);
+      else if (k === "i") fileRef.current?.click();
+      else if (k === "r" && !e.repeat) void (recorder.recording ? stopRecording() : startRecording());
+      else if (k === "/" || k === "t") document.getElementById("bs-thought")?.focus();
+      else return;
+      e.preventDefault();
     };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  }
+    const onPaste = (e: ClipboardEvent) => {
+      if (isTyping()) return;
+      const file = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith("image/"));
+      if (!file) return;
+      e.preventDefault();
+      openMedia(file, file.name || "pasted.png", "image");
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("paste", onPaste);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("paste", onPaste);
+    };
+  });
 
-  // ---- derived geometry
-  const ideas = useMemo(() => state?.ideas ?? [], [state]);
-  const xAxis = state?.axes.find((a) => a.id === xId) ?? state?.axes[0];
-  const yAxis = state?.axes.find((a) => a.id === yId) ?? state?.axes[1] ?? state?.axes[0];
-  const box = plotBox(size.w, size.h, note && size.w >= 1024 ? 390 : 0);
-  const lensReady = lens && xAxis && yAxis;
-  const { edges, clusters, islands } = connectionsOf(state);
-  const islandSet = new Set(islands);
-
-  const occupied = new Set<QuadKey>(lensReady ? ideas.map((i) => quadOf(i, xAxis.id, yAxis.id)) : []);
-  const highlightIds: string[] = selectedId
-    ? [selectedId, ...relatedIds]
-    : localNote
-      ? localNote.ids
-      : whyOpen && current
-        ? current.why.ideaIds
-        : digestIds;
-  const highlight = new Set(highlightIds);
-
-  const claimed = new Set(Object.values(keyMap));
-  type Item = { key: string; id: string; text: string; speaker?: string; authorColor?: string; isPending: boolean; idea?: Idea; media?: PendingMedia };
-  const allItems: Item[] = [
-    ...ideas.map((i) => ({ key: keyMap[i.id] ?? i.id, id: i.id, text: i.text, speaker: (i as AuthoredIdea).authorName ?? i.speaker, authorColor: (i as AuthoredIdea).authorColor, isPending: false, idea: i })),
-    ...pending.filter((p) => !claimed.has(p.tempId)).map((p) => ({ key: p.tempId, id: p.tempId, text: p.text, isPending: true, media: p.media })),
+  const menu = [
+    { label: "Show connections", hint: "C", checked: showConn, onSelect: () => setShowConn((v) => !v) },
+    { label: "Converge", disabled: !ideas.length || scripted, onSelect: () => setConvergeOn(true) },
+    {
+      label: "Replay",
+      checked: replayOn,
+      disabled: !ideas.length || scripted,
+      onSelect: () => {
+        setReplayOn((v) => !v);
+        setReplayFrame(null);
+      },
+    },
+    { label: "Wrap up", disabled: !ideas.length, onSelect: () => setWrapOpen(true) },
   ];
-
-  const hiddenSet = new Set(hidden);
-  const visibleItems = allItems.filter((i) => !hiddenSet.has(i.id));
-  const items = replayFrame ? visibleItems.filter((i) => i.isPending || replayFrame.ideas.has(i.id)) : visibleItems;
-
-  function targetFor(item: Item) {
-    if (lensReady && item.idea) {
-      const pt = lensPoint(item.idea, xAxis.id, yAxis.id, box);
-      const scale = size.w < 640 ? 0.46 : LENS_SCALE;
-      const hw = (STICKY_W * scale) / 2;
-      const hh = (STICKY_H * scale) / 2;
-      const cx = Math.min(box.left + box.width - hw, Math.max(box.left + hw, pt.x));
-      const cy = Math.min(box.top + box.height - hh, Math.max(box.top + hh, pt.y));
-      return { x: cx - STICKY_W / 2, y: cy - STICKY_H / 2, rotate: 0, scale };
-    }
-    if (lensReady) {
-      return { x: box.left + box.width / 2 - STICKY_W / 2, y: box.top + box.height + 4, rotate: 0, scale: 0.5 };
-    }
-    const p = positions[item.id] ?? positions[item.key] ?? { x: 24, y: 24, rot: 0 };
-    return { x: p.x, y: p.y, rotate: p.rot, scale: 1 };
-  }
-
-  const centers: Record<string, { x: number; y: number }> = {};
-  for (const item of items) {
-    const t = targetFor(item);
-    const drag = dragging?.id === item.id ? dragging : null;
-    centers[item.id] = { x: t.x + STICKY_W / 2 + (drag?.dx ?? 0), y: t.y + STICKY_H / 2 + (drag?.dy ?? 0) };
-  }
-
-  const extentW = Math.max(size.w, ...Object.values(positions).map((p) => p.x + STICKY_W + 48));
-  const extentH = Math.max(size.h, ...Object.values(positions).map((p) => p.y + STICKY_H + 120));
-  const surfaceW = lens ? size.w : extentW;
-  const surfaceH = lens ? size.h : extentH;
-
-  const quadIdeas = lensReady && quad ? ideas.filter((i) => quadOf(i, xAxis.id, yAxis.id) === quad) : [];
-  const hasPrompt = Boolean(prompt);
-  const nothingYet = hasPrompt && !items.length && !draft;
 
   return (
     <div className="relative flex h-svh flex-col overflow-hidden">
-      {/* ---------- header ---------- */}
-      <header className="relative z-20 border-b border-rule/70 bg-paper/85 px-4 pt-3 pb-2 backdrop-blur sm:px-8">
-        {loading ? (
+      <header className="relative z-20 border-b border-rule/60 bg-paper/85 px-4 pt-3 pb-2 backdrop-blur sm:px-8">
+        {live.loading ? (
           <div className="h-12 w-2/3 animate-pulse rounded bg-paper-sunk" />
         ) : !hasPrompt ? (
           <div className="py-4 sm:py-8">
-            <PromptEntry onSubmit={(v) => void startSession(v)} />
+            <PromptEntry onSubmit={(v) => void live.startSession(v)} />
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-start justify-between gap-3">
-              <motion.h1
-                data-tour="question-heading"
-                layoutId="bs-prompt-heading"
-                className="font-display min-w-0 text-[clamp(1.25rem,1rem+1vw,1.75rem)] leading-tight tracking-tight text-ink sm:truncate"
-                title={prompt ?? undefined}
-              >
-                {prompt}
-              </motion.h1>
-              <div className="flex shrink-0 items-center gap-1">
-                {sessionId && !scripted ? <InviteButton sessionId={sessionId} className="max-sm:hidden" /> : null}
-                {!scripted ? <PhoneQrButton sessionId={sessionId} /> : null}
-                <Button type="button" variant="outline" className="h-8 px-3" disabled={!ideas.length} onClick={() => setWrapOpen(true)}>
-                  Wrap up
-                </Button>
-                {!scripted ? <AccountMenu className="ml-1" /> : null}
-              </div>
-            </div>
-            <div data-tour="lens-bar" className="min-w-0">
-            <LensChips axes={state?.axes ?? []} finding={finding} saving={savingAxes} lens={lens} xId={xAxis?.id ?? null} yId={yAxis?.id ?? null} onSave={(a) => void saveAxes(a)} />
-            </div>
-          </div>
+          <TopBar
+            prompt={prompt ?? ""}
+            sessionId={sessionId}
+            scripted={scripted}
+            axes={axes}
+            finding={live.finding}
+            savingAxes={live.savingAxes}
+            lens={lens}
+            xId={xAxis?.id ?? null}
+            yId={yAxis?.id ?? null}
+            menu={menu}
+            onLens={toggleLens}
+            onSaveAxes={(a) => void live.saveAxes(a)}
+          />
         )}
       </header>
 
@@ -716,11 +340,21 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
           />
         </div>
       ) : null}
-      {/* ---------- board ---------- */}
+
       <div
         ref={viewportRef}
         data-tour="board"
-        className={`relative flex-1 ${lens ? "overflow-hidden" : "overflow-auto"} ${panning ? "cursor-grab" : ""}`}
+        role="application"
+        aria-label={lens ? "Lens view of your ideas" : "Thought map"}
+        className="relative flex-1 overflow-hidden"
+        style={{
+          backgroundImage: "radial-gradient(circle, color-mix(in oklch, var(--ink) 9%, transparent) 1px, transparent 1.4px)",
+          backgroundSize: "26px 26px",
+        }}
+        onClick={() => {
+          setSelectedId(null);
+          setQuad(null);
+        }}
         onDragOver={(e) => {
           if (!scripted && e.dataTransfer.types.includes("Files")) e.preventDefault();
         }}
@@ -728,197 +362,101 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
           const file = Array.from(e.dataTransfer.files).find((f) => f.type.startsWith("image/") || f.type.startsWith("audio/"));
           if (!file) return;
           e.preventDefault();
-          const rect = surfaceRef.current?.getBoundingClientRect();
-          const at = rect ? { x: Math.max(8, (e.clientX - rect.left) / zoom - STICKY_W / 2), y: Math.max(8, (e.clientY - rect.top) / zoom - 40) } : undefined;
-          openMedia(file, file.name, file.type.startsWith("audio/") ? "audio" : "image", at);
-        }}
-        style={{
-          backgroundImage: "radial-gradient(circle, color-mix(in oklch, var(--ink) 14%, transparent) 1px, transparent 1.4px)",
-          backgroundSize: "22px 22px",
+          openMedia(file, file.name, file.type.startsWith("audio/") ? "audio" : "image");
         }}
       >
-        <div style={{ width: surfaceW * zoom, height: surfaceH * zoom }}>
-        <MotionConfig transformPagePoint={(pt) => ({ x: pt.x / zoom, y: pt.y / zoom })}>
-        <div
-          ref={surfaceRef}
-          role="application"
-          aria-label={lens ? "Lens view of your ideas" : "Whiteboard. Click to add a sticky note."}
-          className={`relative ${lens ? "" : hasPrompt ? "cursor-crosshair" : ""}`}
-          style={{ width: surfaceW, height: surfaceH, transform: zoom === 1 ? undefined : `scale(${zoom})`, transformOrigin: "0 0" }}
-          onClick={onSurfaceClick}
-        >
-          <AnimatePresence>
-            {lensReady ? (
-              <LensGrid key="grid" box={box} xAxis={xAxis} yAxis={yAxis} occupied={occupied} selected={quad} onSelect={setQuad} />
-            ) : null}
-          </AnimatePresence>
+        <ThoughtMap
+          items={items}
+          edges={edges}
+          clusters={clusters}
+          links={links}
+          islands={new Set(islands)}
+          size={size}
+          lens={lensReady ? { box, ...lensReady, occupied, quad, onQuad: setQuad } : null}
+          noteOpen={Boolean(note)}
+          showConn={showConn}
+          highlight={new Set(highlightIds)}
+          selectedId={selectedId}
+          hoverId={inspectHover ?? hoverId}
+          canDrag={!scripted}
+          onHover={setHoverId}
+          onSelect={onSelect}
+          onPin={(id, board) => void live.updateIdea(id, { board })}
+          onRemoveLink={(l) => setLinks((list) => list.filter((x) => !(x.a === l.a && x.b === l.b)))}
+        />
 
-          <ConnectionsLayer
-            width={surfaceW}
-            height={surfaceH}
-            centers={centers}
-            edges={edges}
-            clusters={clusters}
-            links={links}
-            hoverId={inspectHover ?? hoverId ?? selectedId}
-            show={showConn}
-            pendingLink={linkDrag}
-            onRemoveLink={(l) => setLinks((list) => list.filter((x) => !(x.a === l.a && x.b === l.b)))}
-          />
-
-          {items.map((item) => (
-            <Sticky
-              key={item.key}
-              id={item.id}
-              text={item.text}
-              speaker={item.speaker}
-              authorColor={item.authorColor}
-              color={stickyColor(item.speaker)}
-              target={targetFor(item)}
-              isPending={item.isPending}
-              isFresh={freshRef.current.has(item.key) || Boolean(snapshot?.freshIds.includes(item.id))}
-              isHighlighted={highlight.has(item.id)}
-              isDimmed={(highlight.size > 0 && !highlight.has(item.id)) || (lensReady && quad !== null && item.idea !== undefined && quadOf(item.idea, xAxis.id, yAxis.id) !== quad)}
-              isIsland={islandSet.has(item.id)}
-              assumption={item.idea?.kind === "assumption" ? <AssumptionCard idea={item.idea} /> : undefined}
-              isShortlisted={Boolean(item.idea?.shortlisted)}
-              isSelected={selectedId === item.id || inspectHover === item.id}
-              media={stickyMedia(item)}
-              onOpen={scripted ? undefined : setSelectedId}
-              canDrag={!lens && !scripted}
-              compact={Boolean(lensReady)}
-              onHover={setHoverId}
-              onDrag={(id, dx, dy) => setDragging({ id, dx, dy })}
-              onDragEnd={(id, dx, dy) => {
-                setDragging(null);
-                setPositions((p) => {
-                  const cur = p[id];
-                  return cur ? { ...p, [id]: { ...cur, x: Math.max(0, cur.x + dx), y: Math.max(0, cur.y + dy) } } : p;
-                });
-              }}
-              onLinkStart={onLinkStart}
-            />
-          ))}
-
-          {draft ? (
-            <DraftSticky
-              key={`${draft.x}-${draft.y}`}
-              x={draft.x}
-              y={draft.y}
-              color={stickyColor()}
-              initialText={draft.text}
-              onCancel={() => setDraft(null)}
-              onCommit={(text) => {
-                const at = { x: draft.x, y: draft.y };
-                setDraft(null);
-                addIdea(text, at);
-              }}
-            />
-          ) : null}
-
-          {!hasPrompt && !loading ? (
-            <p className="font-display pointer-events-none absolute inset-x-0 top-[30%] px-6 text-center text-xl text-ink-faint italic">
-              Your ideas will land here.
-            </p>
-          ) : null}
-          {nothingYet && !lens ? (
-            <div className="pointer-events-none absolute inset-x-0 top-[26%] px-6 text-center">
-              <p className="font-display text-[clamp(1.25rem,1rem+1vw,1.75rem)] text-ink-soft italic">Click anywhere to stick your first idea.</p>
-              <p className="mt-2 text-sm text-ink-faint">Or just start typing. Anything goes — quantity beats polish.</p>
-            </div>
-          ) : null}
-          {lens && !ideas.length ? (
-            <p className="font-display pointer-events-none absolute inset-x-0 top-1/2 z-10 px-6 text-center text-lg text-ink-soft italic">
-              Add a few notes, then come back. Lens view places them on two of your lenses.
-            </p>
-          ) : null}
-        </div>
-        </MotionConfig>
-        </div>
+        {!hasPrompt && !live.loading ? (
+          <p className="font-display pointer-events-none absolute inset-x-0 top-[32%] px-6 text-center text-xl text-ink-faint italic">
+            Your thoughts will appear here as points, and the map will show how they connect.
+          </p>
+        ) : null}
+        {hasPrompt && !items.length && !lens ? (
+          <div className="pointer-events-none absolute inset-x-0 top-[30%] px-6 text-center">
+            <p className="font-display text-[clamp(1.25rem,1rem+1vw,1.75rem)] text-ink-soft italic">Add your first thought below.</p>
+            <p className="mt-2 text-sm text-ink-faint">Each one becomes a point. Related points draw together on their own.</p>
+          </div>
+        ) : null}
+        {lens && !ideas.length ? (
+          <p className="font-display pointer-events-none absolute inset-x-0 top-1/2 z-10 px-6 text-center text-lg text-ink-soft italic">
+            Add a few thoughts, then come back. Lens view places them on two of your lenses.
+          </p>
+        ) : null}
+        {connectFrom ? (
+          <div className="absolute top-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-ink px-4 py-1.5 text-sm text-paper-raised shadow">
+            Pick a point to connect to · Esc to cancel
+          </div>
+        ) : null}
       </div>
 
-      {/* ---------- floating chrome ---------- */}
       {hasPrompt ? (
         <>
-          <div className="pointer-events-none absolute bottom-20 left-4 z-30 flex flex-col items-start gap-2 sm:bottom-4 sm:left-8">
+          <div className="pointer-events-none absolute bottom-24 left-4 z-30 flex flex-col items-start gap-2 sm:bottom-5 sm:left-8">
             {lensReady && quad ? (
               <div className="pointer-events-auto relative w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-rule bg-paper-raised p-3 shadow-[var(--shadow-card)]">
-                <p className="text-sm">
-                  {quadIdeas.length ? `${quadIdeas.length} note${quadIdeas.length === 1 ? "" : "s"} in this corner.` : "Nobody's been here yet."}
-                </p>
+                <p className="text-sm">{quadIdeas.length ? `${quadIdeas.length} point${quadIdeas.length === 1 ? "" : "s"} in this corner.` : "Nobody's been here yet."}</p>
                 {quadIdeas.length ? <RealityButton ideaTexts={quadIdeas.map((i) => i.text)} prompt={prompt ?? ""} className="mt-2" /> : null}
               </div>
             ) : null}
             {lensReady && state ? (
               <div className="pointer-events-auto flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-rule bg-paper-raised/95 px-3 py-1.5 text-xs shadow-sm backdrop-blur max-sm:max-w-[11rem] max-sm:flex-col max-sm:items-start">
-                <AxisPick label="Across" value={xAxis.id} axes={state.axes} onChange={setXId} />
-                <AxisPick label="Up" value={yAxis.id} axes={state.axes} onChange={setYId} />
+                <AxisPick label="Across" value={lensReady.xAxis.id} axes={axes} onChange={setXId} />
+                <AxisPick label="Up" value={lensReady.yAxis.id} axes={axes} onChange={setYId} />
               </div>
             ) : null}
             {state ? (
-              <div data-tour="range-meter" className="pointer-events-auto">
+              <div data-tour="range-meter" className="pointer-events-auto max-sm:hidden">
                 <RangeMeter value={state.diversity} />
               </div>
             ) : null}
           </div>
 
-          <div className="pointer-events-none absolute right-4 bottom-20 z-30 flex flex-col items-end gap-2 sm:right-8 sm:bottom-4">
-            {scripted ? null : (
+          {scripted ? null : (
+            <div className="pointer-events-none absolute right-4 bottom-24 z-30 sm:right-8">
               <div className="pointer-events-auto">
                 <BoardCoach step={coachStep} onStep={setCoachStep} />
               </div>
-            )}
-            {!lens && !scripted ? (
-              <div className="pointer-events-auto flex items-center rounded-full border border-rule bg-paper-raised/90 text-xs text-ink-soft shadow-sm backdrop-blur max-sm:hidden">
-                <button type="button" aria-label="Zoom out" className="px-2.5 py-1.5 hover:text-ink" onClick={() => setZoom(zoom - 0.1)}>
-                  −
-                </button>
-                <button type="button" title="Reset zoom" className="tnum w-12 py-1.5 text-center hover:text-ink" onClick={() => setZoom(1)}>
-                  {Math.round(zoom * 100)}%
-                </button>
-                <button type="button" aria-label="Zoom in" className="px-2.5 py-1.5 hover:text-ink" onClick={() => setZoom(zoom + 0.1)}>
-                  +
-                </button>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex justify-center px-3 sm:bottom-4">
-            <div className="pointer-events-auto">
-              <Toolbar
-                lens={lens}
-                showConn={showConn}
-                recording={recorder.recording}
-                canConverge={ideas.length > 0}
-                replayOn={replayOn}
-                scripted={scripted}
-                onText={() => openDraftAtFreeSpot("")}
-                onImage={() => fileRef.current?.click()}
-                onRecordStart={() => void startRecording()}
-                onRecordStop={() => void stopRecording()}
-                onLens={(next) => {
-                  setLens(next);
-                  if (next && coachStep === 2) setCoachStep(3);
-                }}
-                onConn={() => setShowConn((v) => !v)}
-                onConverge={() => setConvergeOn(true)}
-                onReplay={() => {
-                  setReplayOn((v) => !v);
-                  setReplayFrame(null);
-                }}
-              />
             </div>
-          </div>
-          {snapshot?.draft ? (
-            <div
-              aria-live="polite"
-              className="fixed right-4 bottom-24 z-40 w-[min(17rem,calc(100vw-2rem))] -rotate-1 sm:right-8 rounded-[3px] p-3 text-[0.95rem] leading-snug text-ink shadow-[0_18px_30px_-12px_oklch(30%_0.04_60/0.45)] ring-2 ring-ink/80"
-              style={{ background: stickyColor() }}
-            >
-              {snapshot.draft}
-              <span className="ml-0.5 inline-block h-4 w-px translate-y-0.5 animate-pulse bg-ink" />
+          )}
+
+          {replayOn && state ? (
+            <div className="absolute inset-x-0 bottom-24 z-30 flex justify-center px-4">
+              <div className="w-[min(40rem,100%)] rounded-2xl border border-rule bg-paper-raised/95 p-2 shadow-[var(--shadow-card)] backdrop-blur">
+                <ReplayTimeline state={state} onFrame={onReplayFrame} />
+              </div>
             </div>
           ) : null}
+
+          <div className="absolute inset-x-0 bottom-4 z-30 flex justify-center px-3">
+            <ThoughtInput
+              disabled={!scripted && !hasPrompt}
+              scriptedValue={snapshot ? snapshot.draft : undefined}
+              recording={recorder.recording}
+              onAdd={addThought}
+              onImage={() => fileRef.current?.click()}
+              onRecordStart={() => void startRecording()}
+              onRecordStop={() => void stopRecording()}
+            />
+          </div>
           <input
             ref={fileRef}
             type="file"
@@ -933,21 +471,11 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
         </>
       ) : null}
 
-      {replayOn && state ? (
-        <div className="absolute inset-x-0 bottom-[4.75rem] z-30 flex justify-center px-4">
-          <div className="w-[min(40rem,100%)] rounded-2xl border border-rule bg-paper-raised/95 p-2 shadow-[var(--shadow-card)] backdrop-blur">
-            <ReplayTimeline
-              state={state}
-              onFrame={onReplayFrame}
-            />
-          </div>
-        </div>
-      ) : null}
-      <div className="pointer-events-none absolute top-[7.5rem] right-4 z-30 max-sm:top-auto max-sm:bottom-36 sm:right-8">
+      <div className="pointer-events-none absolute top-[7.5rem] right-4 z-30 max-sm:top-auto max-sm:bottom-24 sm:right-8">
         <QuestionNote
           note={note}
           whyOpen={whyOpen || Boolean(localNote)}
-          busy={busy}
+          busy={live.busy}
           onWhy={setWhyOpen}
           onAccept={() => void resolveNote("accepted")}
           onDismiss={() => void resolveNote("dismissed")}
@@ -955,11 +483,11 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
       </div>
 
       <AnimatePresence>
-        {wrapOpen && state ? <WrapUp state={state} getBoardElement={() => viewportRef.current} onClose={() => setWrapOpen(false)} /> : null}
+        {wrapOpen && state ? <WrapUp key="wrap" state={state} getBoardElement={() => viewportRef.current} onClose={() => setWrapOpen(false)} /> : null}
         {convergeOn && state ? (
-          <ConvergeDrawer key="converge" state={state} onToggleShortlist={(id, next) => void toggleShortlist(id, next)} onClose={() => setConvergeOn(false)} />
+          <ConvergeDrawer key="converge" state={state} onToggleShortlist={(id, next) => void live.updateIdea(id, { shortlisted: next })} onClose={() => setConvergeOn(false)} />
         ) : null}
-        {selectedId && state && !scripted ? (
+        {selectedId && state && !scripted && !connectFrom ? (
           <Inspector
             key="inspector"
             ideaId={selectedId}
@@ -969,22 +497,40 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
               setRelatedIds([]);
               setInspectHover(null);
             }}
-            onJump={jumpTo}
+            onJump={setSelectedId}
             onHoverRelated={setInspectHover}
             onRelated={setRelatedIds}
-            onShortlist={(id, next) => void toggleShortlist(id, next)}
-            onAssumption={(id) => void markAssumption(id)}
-            onDelete={(id) => void removeIdea(id)}
+            onConnect={(id) => setConnectFrom(id)}
+            onShortlist={(id, next) => void live.updateIdea(id, { shortlisted: next })}
+            onAssumption={(id) => void live.updateIdea(id, { kind: "assumption" })}
+            onDelete={(id) => {
+              setSelectedId(null);
+              void live.removeIdea(id);
+            }}
           />
         ) : null}
         {mediaDraft && sessionId ? (
           <MediaComposer key="media" draft={mediaDraft} sessionId={sessionId} onPlace={placeMedia} onClose={() => setMediaDraft(null)} />
         ) : null}
-        {assumptionOpen ? <AssumptionWriter key="assume" onSubmit={postAssumption} onClose={() => setAssumptionOpen(false)} /> : null}
+        {assumptionOpen ? (
+          <AssumptionWriter
+            key="assume"
+            onSubmit={async (text) => {
+              await live.postAssumption(text);
+              setAssumptionOpen(false);
+            }}
+            onClose={() => setAssumptionOpen(false)}
+          />
+        ) : null}
       </AnimatePresence>
       <span className="sr-only" aria-live="polite">
-        {pending.length ? `${pending.length} idea${pending.length === 1 ? "" : "s"} being placed` : ""}
+        {live.pending.length ? `${live.pending.length} thought${live.pending.length === 1 ? "" : "s"} being placed` : ""}
       </span>
     </div>
   );
+}
+
+/** Author dots: a darker pencil tone derived from the speaker's sticky colour family. */
+function stickyInk(speaker: string): string {
+  return stickyColor(speaker).replace(/oklch\((\d+)%\s+([\d.]+)/, (_m, _l, c) => `oklch(55% ${Math.min(0.16, Number(c) * 2)}`);
 }
