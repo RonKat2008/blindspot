@@ -184,10 +184,28 @@ export const LIVE_STEPS: readonly LiveStep[] = [
       await d.sleep(600);
       await addText(d, say, GAP_TEXT_IDEA);
       await d.sleep(800);
+      // Clear the stage: close the "why" (it dims other points) and tuck the question away.
+      const note = $('[data-tour="question-note"]');
+      if (note) {
+        note.querySelector<HTMLButtonElement>('button[aria-expanded="true"]')?.click();
+        await d.sleep(300);
+        buttonWithText("Not now", note)?.click();
+        await d.sleep(700);
+      }
       await setView(d, "lens");
       const filled = filledEmptyCorner(before, await readState(), [GAP_IMAGE_LABEL, GAP_TEXT_IDEA]);
       say(filled ? "The human filled the empty corner." : "Back to Lens view: see where the human's answers land, and watch Range move.");
-      await d.sleep(5500);
+      await d.sleep(1200);
+      // Draw the eye: the board's own hover/focus highlight on each answer, ~4s total.
+      for (const text of [GAP_IMAGE_LABEL, GAP_TEXT_IDEA]) {
+        const point = stickyWithText(text);
+        if (!point) continue;
+        point.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+        point.focus();
+        await d.sleep(2000);
+        point.dispatchEvent(new PointerEvent("pointerout", { bubbles: true }));
+        point.blur();
+      }
     },
   },
   {
