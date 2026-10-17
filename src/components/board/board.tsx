@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { RealityButton } from "@/components/reality-button";
 import { api } from "@/lib/api-client";
-import type { Idea, SessionState } from "@/lib/contract";
+import type { Idea, Provocation, SessionState } from "@/lib/contract";
 import { spring } from "@/lib/motion";
 import { InviteButton, LensChips, PromptEntry } from "./board-header";
 import type { HumanLink, PosMap, QuadKey } from "./board-utils";
@@ -43,6 +43,18 @@ function placeMissing(ideas: Idea[], positions: PosMap, width: number): PosMap {
   return next;
 }
 
+/** Deterministic board layout (scripted mode): grid order, rotation hashed from the id. */
+function autoLayout(ideas: Idea[], width: number): PosMap {
+  const out: PosMap = {};
+  for (const idea of ideas) {
+    const spot = nextFreeSpot(Object.values(out), width);
+    let h = 0;
+    for (const ch of idea.id) h = (h * 33 + ch.charCodeAt(0)) >>> 0;
+    out[idea.id] = { x: spot.x, y: spot.y, rot: ((h % 60) - 30) / 10 };
+  }
+  return out;
+}
+
 function emptyState(id: string, prompt: string, axes: SessionState["axes"]): SessionState {
   return {
     session: { id, prompt, teamName: null, createdAt: new Date().toISOString() },
@@ -54,26 +66,39 @@ function emptyState(id: string, prompt: string, axes: SessionState["axes"]): Ses
   };
 }
 
-export function Board({ sessionId: initialId }: { sessionId?: string }) {
+export type BoardSnapshot = {
+  state: SessionState;
+  draft: string;
+  view: "board" | "lens";
+  whyOpen: boolean;
+  freshIds: string[];
+  revealId: string | null;
+};
+
+/**
+ * The whiteboard. Live mode: pass `sessionId` (or nothing for a fresh board).
+ * Scripted mode: pass `snapshot` (the /demo tour) — no network, no input, layout is deterministic.
+ */
+export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; snapshot?: BoardSnapshot }) {
   const reduce = useReducedMotion();
   const viewportRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
 
   const [sessionId, setSessionId] = useState<string | null>(initialId ?? null);
-  const [prompt, setPrompt] = useState<string | null>(null);
-  const [state, setState] = useState<SessionState | null>(null);
+  const [promptRaw, setPrompt] = useState<string | null>(null);
+  const [stateRaw, setState] = useState<SessionState | null>(null);
   const [loading, setLoading] = useState(Boolean(initialId));
   const [finding, setFinding] = useState(false);
   const [savingAxes, setSavingAxes] = useState(false);
-  const [positions, setPositions] = useState<PosMap>({});
+  const [posRaw, setPositions] = useState<PosMap>({});
   const [keyMap, setKeyMap] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<Pending[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [lens, setLens] = useState(false);
+  const [lensRaw, setLens] = useState(false);
   const [xId, setXId] = useState<string | null>(null);
   const [yId, setYId] = useState<string | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
-  const [whyOpen, setWhyOpen] = useState(false);
+  const [whyRaw, setWhyOpen] = useState(false);
   const [localNote, setLocalNote] = useState<(QuestionNoteData & { ids: string[] }) | null>(null);
   const [links, setLinks] = useState<HumanLink[]>([]);
   const [dragging, setDragging] = useState<{ id: string; dx: number; dy: number } | null>(null);
@@ -84,6 +109,15 @@ export function Board({ sessionId: initialId }: { sessionId?: string }) {
   const [coachStep, setCoachStep] = useState(initialId ? 1 : 0);
   const [wrapOpen, setWrapOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const scripted = Boolean(snapshot);
+  const state = snapshot ? snapshot.state : stateRaw;
+  const prompt = snapshot ? snapshot.state.session.prompt : promptRaw;
+  const lens = snapshot ? snapshot.view === "lens" : lensRaw;
+  const whyOpen = snapshot ? snapshot.whyOpen : whyRaw;
+  const positions = useMemo(
+    () => (snapshot ? autoLayout(snapshot.state.ideas, size.w) : posRaw),
+    [snapshot, size.w, posRaw],
+  );
   const freshRef = useRef<Set<string>>(new Set());
   const lastMutation = useRef(0);
   const sessionRef = useRef<string | null>(initialId ?? null);
@@ -286,6 +320,7 @@ export function Board({ sessionId: initialId }: { sessionId?: string }) {
   }
 
   function onSurfaceClick(e: React.MouseEvent) {
+    if (scripted) return;
     if (lens) {
       setQuad(null);
       return;
@@ -307,6 +342,7 @@ export function Board({ sessionId: initialId }: { sessionId?: string }) {
 
   // ---- keyboard: L lens, C connections, type-to-add
   useEffect(() => {
+    if (scripted) return;
     const onKey = (e: KeyboardEvent) => {
       const el = document.activeElement;
       const typing = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || (el as HTMLElement | null)?.isContentEditable;
@@ -337,7 +373,26 @@ export function Board({ sessionId: initialId }: { sessionId?: string }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  // ---- human links
+  // ---- human links: the server may answer with a bridge question (never an idea)
+  async function askBridge(sid: string, a: string, b: string) {
+    try {
+      const res = await fetch("/api/provocations/bridge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: sid, a, b }),
+      });
+      const data = (await res.json()) as { provocation?: Provocation | null };
+      if (!res.ok || !data.provocation) return;
+      const p = data.provocation;
+      lastMutation.current = Date.now();
+      setLocalNote(null);
+      setWhyOpen(true);
+      setState((prev) => (prev && !prev.provocations.some((x) => x.id === p.id) ? { ...prev, provocations: [...prev.provocations, p] } : prev));
+    } catch {
+      // The link itself is saved locally; a missing question is fine.
+    }
+  }
+
   function onLinkStart(from: string, e: React.PointerEvent) {
     const rect = surfaceRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -353,6 +408,8 @@ export function Board({ sessionId: initialId }: { sessionId?: string }) {
         list.some((l) => (l.a === from && l.b === target) || (l.a === target && l.b === from)) ? list : [...list, { a: from, b: target }],
       );
       const { edges } = connectionsOf(state);
+      const sid = sessionRef.current;
+      if (sid) void askBridge(sid, from, target);
       if (!hasEdge(edges, from, target)) {
         const a = textOf(from) ?? "";
         const b = textOf(target) ?? "";
@@ -433,6 +490,7 @@ export function Board({ sessionId: initialId }: { sessionId?: string }) {
           <div className="flex flex-col gap-2">
             <div className="flex items-start justify-between gap-3">
               <motion.h1
+                data-tour="question-heading"
                 layoutId="bs-prompt-heading"
                 className="font-display min-w-0 text-[clamp(1.25rem,1rem+1vw,1.75rem)] leading-tight tracking-tight text-ink sm:truncate"
                 title={prompt ?? undefined}
@@ -446,7 +504,9 @@ export function Board({ sessionId: initialId }: { sessionId?: string }) {
                 </Button>
               </div>
             </div>
+            <div data-tour="lens-bar" className="min-w-0">
             <LensChips axes={state?.axes ?? []} finding={finding} saving={savingAxes} lens={lens} xId={xAxis?.id ?? null} yId={yAxis?.id ?? null} onSave={(a) => void saveAxes(a)} />
+            </div>
           </div>
         )}
       </header>
@@ -454,6 +514,7 @@ export function Board({ sessionId: initialId }: { sessionId?: string }) {
       {/* ---------- board ---------- */}
       <div
         ref={viewportRef}
+        data-tour="board"
         className={`relative flex-1 ${lens ? "overflow-hidden" : "overflow-auto"}`}
         style={{
           backgroundImage: "radial-gradient(circle, color-mix(in oklch, var(--ink) 14%, transparent) 1px, transparent 1.4px)",
@@ -496,11 +557,11 @@ export function Board({ sessionId: initialId }: { sessionId?: string }) {
               color={stickyColor(item.speaker)}
               target={targetFor(item)}
               isPending={item.isPending}
-              isFresh={freshRef.current.has(item.key)}
+              isFresh={freshRef.current.has(item.key) || Boolean(snapshot?.freshIds.includes(item.id))}
               isHighlighted={highlight.has(item.id)}
               isDimmed={(highlight.size > 0 && !highlight.has(item.id)) || (lensReady && quad !== null && item.idea !== undefined && quadOf(item.idea, xAxis.id, yAxis.id) !== quad)}
               isIsland={islandSet.has(item.id)}
-              canDrag={!lens}
+              canDrag={!lens && !scripted}
               compact={Boolean(lensReady)}
               onHover={setHoverId}
               onDrag={(id, dx, dy) => setDragging({ id, dx, dy })}
@@ -568,10 +629,14 @@ export function Board({ sessionId: initialId }: { sessionId?: string }) {
                 <AxisPick label="Up" value={yAxis.id} axes={state.axes} onChange={setYId} />
               </div>
             ) : null}
-            {state ? <RangeMeter value={state.diversity} /> : null}
+            {state ? (
+              <div data-tour="range-meter">
+                <RangeMeter value={state.diversity} />
+              </div>
+            ) : null}
           </div>
-          <div className="pointer-events-auto flex flex-col items-end gap-2">
-            <BoardCoach step={coachStep} onStep={setCoachStep} />
+          <div className="pointer-events-auto relative flex flex-col items-end gap-2">
+            {scripted ? null : <BoardCoach step={coachStep} onStep={setCoachStep} />}
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -585,7 +650,7 @@ export function Board({ sessionId: initialId }: { sessionId?: string }) {
                 </svg>
                 Threads
               </button>
-              <div role="group" aria-label="View" className="flex rounded-full border border-rule bg-paper-raised/95 p-1 shadow-sm backdrop-blur">
+              <div data-tour="lens-toggle" role="group" aria-label="View" className="flex rounded-full border border-rule bg-paper-raised/95 p-1 shadow-sm backdrop-blur">
                 <ViewTab active={!lens} onClick={() => setLens(false)}>Board</ViewTab>
                 <ViewTab
                   active={lens}
@@ -597,8 +662,18 @@ export function Board({ sessionId: initialId }: { sessionId?: string }) {
                   Lens view <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[10px] opacity-60 sm:inline">L</kbd>
                 </ViewTab>
               </div>
-              {!lens ? (
-                <motion.button
+              {snapshot?.draft ? (
+                <div
+                  aria-live="polite"
+                  className="fixed bottom-24 left-1/2 z-40 w-[min(17rem,calc(100vw-2rem))] -translate-x-1/2 -rotate-1 rounded-[3px] p-3 text-[0.95rem] leading-snug text-ink shadow-[0_18px_30px_-12px_oklch(30%_0.04_60/0.45)] ring-2 ring-ink/80"
+                  style={{ background: stickyColor() }}
+                >
+                  {snapshot.draft}
+                  <span className="ml-0.5 inline-block h-4 w-px translate-y-0.5 animate-pulse bg-ink" />
+                </div>
+              ) : null}
+              <motion.button
+                  data-tour="add-sticky"
                   type="button"
                   whileTap={reduce ? undefined : { scale: 0.95 }}
                   transition={spring.snappy}
@@ -608,13 +683,12 @@ export function Board({ sessionId: initialId }: { sessionId?: string }) {
                   <span className="text-lg leading-none">+</span>
                   <span className="max-sm:sr-only">Add a sticky</span>
                 </motion.button>
-              ) : null}
             </div>
           </div>
         </div>
       ) : null}
 
-      <div className="pointer-events-none absolute top-[7.5rem] right-4 z-30 max-sm:top-auto max-sm:bottom-36 sm:right-8">
+      <div data-tour="question-note" className="pointer-events-none absolute top-[7.5rem] right-4 z-30 max-sm:top-auto max-sm:bottom-36 sm:right-8">
         <QuestionNote
           note={note}
           whyOpen={whyOpen || Boolean(localNote)}

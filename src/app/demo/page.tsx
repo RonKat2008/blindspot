@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DemoTour } from "@/components/demo/demo-tour";
+import { DemoStage } from "@/components/board/demo-stage";
 
 export const metadata: Metadata = {
   title: "Blind Spot · 90-second tour",
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 
 export default async function DemoPage({ searchParams }: { searchParams: Promise<{ autoplay?: string }> }) {
   const query = await searchParams;
-  return <DemoTour autoplay={query.autoplay === "1"} />;
+  return <DemoStage autoplay={query.autoplay === "1"} />;
 }
