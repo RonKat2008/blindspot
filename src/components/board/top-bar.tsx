@@ -9,6 +9,16 @@ import { LensChips, PhoneQrButton } from "./board-header";
 
 type MoreItem = { label: string; hint?: string; checked?: boolean; disabled?: boolean; onSelect: () => void };
 
+/** Physical-room surfaces open in a new tab so the board keeps running on this screen. */
+function roomItems(sessionId: string): MoreItem[] {
+  const open = (path: string) => () => window.open(`${path}/${sessionId}`, "_blank", "noopener,noreferrer");
+  return [
+    { label: "Room camera", hint: "Watch a real sticky-note wall", onSelect: open("/room") },
+    { label: "AR view", hint: "See the map around you on a phone", onSelect: open("/ar") },
+    { label: "Room light", hint: "Ambient screen for the room", onSelect: open("/ambient") },
+  ];
+}
+
 export function TopBar({
   prompt,
   sessionId,
@@ -57,7 +67,7 @@ export function TopBar({
               Lens
             </Seg>
           </div>
-          <MoreMenu items={menu} />
+          <MoreMenu items={sessionId && !scripted ? [...menu, ...roomItems(sessionId)] : menu} />
           {!scripted ? <AccountMenu className="ml-1 max-sm:hidden" /> : null}
         </div>
       </div>
