@@ -274,6 +274,30 @@
   transform: translateY(0) scale(0.98);
 }
 
+.sandbox {
+  margin: 18px 0 0;
+}
+
+.sandboxLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 0.9375rem;
+  color: var(--ink-soft) !important;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 4px;
+  transition: color 150ms, text-decoration-color 150ms;
+}
+
+.sandboxLink:hover {
+  color: var(--ink) !important;
+  text-decoration-color: var(--ink-faint);
+}
+
 /* ---------- shared ---------- */
 
 .label {
