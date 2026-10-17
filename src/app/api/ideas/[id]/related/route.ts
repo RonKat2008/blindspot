@@ -22,7 +22,8 @@ const whyCache = new Map<string, { expires: number; whys: Promise<Whys> }>();
 const WhySchema = z.object({ items: z.array(z.object({ n: z.number().int(), why: z.string() })) });
 const WHY_SYSTEM = `You explain relationships between ideas that HUMANS wrote in a brainstorm.
 For each numbered pair, describe the shared theme of the two ideas in <= 10 words, as a short noun phrase or clause.
-Only describe what the two written ideas already have in common. Never propose new ideas, features, solutions or examples. Never give advice.`;
+Only describe what the two written ideas already have in common. Never propose new ideas, features, solutions or examples. Never give advice.
+If a pair shares no clear theme, return an empty string for it.`;
 
 function round(value: number) { return Math.round(value * 1000) / 1000; }
 function label(idea: StoredIdea) { return [idea.text, idea.mediaCaption].filter(Boolean).join(" — ").slice(0, 400); }

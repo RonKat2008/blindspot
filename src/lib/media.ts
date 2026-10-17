@@ -69,7 +69,7 @@ export async function describeImage(url: string): Promise<string> {
     model: MAIN_MODEL,
     maxRetries: 1,
     abortSignal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS),
-    messages: [{ role: "user", content: [{ type: "text", text: DESCRIBE_INSTRUCTION }, { type: "image", image: new URL(url) }] }],
+    messages: [{ role: "user", content: [{ type: "text", text: DESCRIBE_INSTRUCTION }, { type: "file", mediaType: "image", data: new URL(url) }] }],
   });
   return clip(result.text);
 }
