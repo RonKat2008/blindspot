@@ -6,132 +6,107 @@ import { ease, reducedTransition, spring } from "@/lib/motion";
 import styles from "./art.module.css";
 
 const VIEW = { once: true, margin: "0px 0px -15% 0px" } as const;
+const CENTER = { transformBox: "fill-box", transformOrigin: "center" } as const;
 
 function useT() {
   const isReduced = useReducedMotion();
   return (t: object) => (isReduced ? reducedTransition : t);
 }
 
-/** Step 1: three stickies pop onto the board. */
+function Svg({ children }: { children: React.ReactNode }) {
+  return (
+    <motion.svg viewBox="0 0 240 140" className={styles.art} initial="off" whileInView="on" viewport={VIEW} aria-hidden="true">
+      {children}
+    </motion.svg>
+  );
+}
+
+const SCATTER = [
+  [36, 34, 44], [118, 26, 36], [196, 46, 40], [62, 92, 34], [150, 104, 46], [210, 112, 30],
+] as const;
+
+/** Step 1: ideas drop onto the board one at a time. */
 export function ArtWrite() {
   const t = useT();
-  const notes = [
-    { x: 18, y: 24, r: -4, c: "var(--note-butter)" },
-    { x: 84, y: 16, r: 3, c: "var(--note-blush)" },
-    { x: 150, y: 30, r: -2, c: "var(--note-mint)" },
-  ];
   return (
-    <motion.svg viewBox="0 0 220 120" className={styles.art} initial="off" whileInView="on" viewport={VIEW} aria-hidden="true">
-      {notes.map((n, i) => (
+    <Svg>
+      {SCATTER.map(([x, y, w], i) => (
         <motion.g
           key={i}
-          variants={{ off: { opacity: 0, y: -10, scale: 0.8 }, on: { opacity: 1, y: 0, scale: 1 } }}
-          transition={t({ ...spring.snappy, delay: 0.15 + i * 0.22 })}
-          style={{ transformBox: "fill-box", transformOrigin: "center" }}
+          variants={{ off: { opacity: 0, y: -8 }, on: { opacity: 1, y: 0 } }}
+          transition={t({ ...spring.snappy, delay: 0.15 + i * 0.16 })}
         >
-          <rect x={n.x} y={n.y} width="54" height="44" rx="3" fill={n.c} transform={`rotate(${n.r} ${n.x + 27} ${n.y + 22})`} className={styles.noteShadow} />
-          <rect x={n.x + 8} y={n.y + 12} width="34" height="3" rx="1.5" className={styles.scribble} transform={`rotate(${n.r} ${n.x + 27} ${n.y + 22})`} />
-          <rect x={n.x + 8} y={n.y + 20} width="24" height="3" rx="1.5" className={styles.scribble} transform={`rotate(${n.r} ${n.x + 27} ${n.y + 22})`} />
+          <circle cx={x} cy={y} r="4.5" className={styles.dot} />
+          <rect x={x + 8} y={y - 2} width={w} height="4" rx="2" className={styles.labelBar} />
         </motion.g>
       ))}
-      <motion.path
-        d="M46 92 Q 110 112 176 90"
-        className={styles.thread}
-        variants={{ off: { pathLength: 0 }, on: { pathLength: 1 } }}
-        transition={t({ duration: 0.8, delay: 0.9, ease: ease.outExpo })}
-      />
-    </motion.svg>
+    </Svg>
   );
 }
 
-/** Step 2: dots slide into one corner of the lens map. */
-export function ArtLens() {
+const CLUSTER_MOVES = [
+  [36, 34, 52, 50], [118, 26, 74, 40], [196, 46, 66, 70],
+  [62, 92, 150, 96], [150, 104, 176, 110], [210, 112, 164, 84],
+] as const;
+
+/** Step 2: ideas pull into clusters and threads draw between them. */
+export function ArtCluster() {
   const t = useT();
-  const dots = [
-    [40, 30, 52, 86],
-    [110, 22, 66, 92],
-    [170, 40, 44, 98],
-    [70, 64, 74, 80],
-    [150, 80, 58, 76],
-  ];
   return (
-    <motion.svg viewBox="0 0 220 120" className={styles.art} initial="off" whileInView="on" viewport={VIEW} aria-hidden="true">
-      <motion.rect
-        x="116" y="10" width="94" height="46" rx="8"
-        className={styles.gap}
-        variants={{ off: { opacity: 0 }, on: { opacity: 1 } }}
-        transition={t({ duration: 0.6, delay: 1.1 })}
-      />
-      <path d="M12 60 H208" className={styles.axisX} />
-      <path d="M110 112 V8" className={styles.axisY} />
-      {dots.map(([x0, y0, x1, y1], i) => (
+    <Svg>
+      <motion.circle cx="64" cy="54" r="40" className={styles.halo} variants={{ off: { opacity: 0 }, on: { opacity: 1 } }} transition={t({ duration: 1, delay: 1 })} />
+      <motion.circle cx="164" cy="96" r="40" className={styles.halo} variants={{ off: { opacity: 0 }, on: { opacity: 1 } }} transition={t({ duration: 1, delay: 1 })} />
+      {[["M52 50 Q 62 38 74 40", 0], ["M74 40 Q 76 58 66 70", 0.1], ["M150 96 Q 160 82 164 84", 0.2], ["M164 84 Q 182 94 176 110", 0.3]].map(([d, delay]) => (
+        <motion.path
+          key={d as string}
+          d={d as string}
+          className={styles.thread}
+          variants={{ off: { pathLength: 0 }, on: { pathLength: 1 } }}
+          transition={t({ duration: 0.8, delay: 0.9 + (delay as number), ease: ease.outExpo })}
+        />
+      ))}
+      {CLUSTER_MOVES.map(([x0, y0, x1, y1], i) => (
         <motion.circle
           key={i}
-          r="5"
+          r="4.5"
           className={styles.dot}
           variants={{ off: { cx: x0, cy: y0 }, on: { cx: x1, cy: y1 } }}
-          transition={t({ ...spring.gentle, delay: 0.25 + i * 0.07 })}
+          transition={t({ ...spring.gentle, delay: 0.2 + i * 0.06 })}
         />
       ))}
-    </motion.svg>
+    </Svg>
   );
 }
 
-/** Step 3: a question card, then a human idea lands in the empty corner. */
-export function ArtAnswer() {
+/** Step 3: the empty region glows, a question appears, a person fills the gap. */
+export function ArtAsk() {
   const t = useT();
   return (
-    <motion.svg viewBox="0 0 220 120" className={styles.art} initial="off" whileInView="on" viewport={VIEW} aria-hidden="true">
-      <path d="M12 60 H208" className={styles.axisX} />
-      <path d="M110 112 V8" className={styles.axisY} />
-      <rect x="116" y="10" width="94" height="46" rx="8" className={styles.gap} />
-      <motion.g variants={{ off: { opacity: 0, x: 24 }, on: { opacity: 1, x: 0 } }} transition={t({ ...spring.flight, delay: 0.2 })}>
-        <rect x="14" y="72" width="86" height="38" rx="5" className={styles.question} />
-        <text x="22" y="95" className={styles.questionMark}>?</text>
-        <rect x="38" y="84" width="52" height="3" rx="1.5" className={styles.questionLine} />
-        <rect x="38" y="92" width="36" height="3" rx="1.5" className={styles.questionLine} />
+    <Svg>
+      <circle cx="64" cy="54" r="40" className={styles.halo} />
+      {[[52, 50], [74, 40], [66, 70], [150, 96], [176, 110], [164, 84]].map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r="4.5" className={styles.dot} />
+      ))}
+      <motion.circle
+        cx="186" cy="38" r="44"
+        className={styles.glow}
+        style={CENTER}
+        variants={{ off: { opacity: 0, scale: 0.7 }, on: { opacity: 1, scale: 1 } }}
+        transition={t({ duration: 1.2, delay: 0.2, ease: ease.outExpo })}
+      />
+      <circle cx="186" cy="38" r="18" className={styles.hatch} />
+      <motion.g variants={{ off: { opacity: 0, y: 10 }, on: { opacity: 1, y: 0 } }} transition={t({ ...spring.gentle, delay: 0.7 })}>
+        <rect x="96" y="6" width="62" height="24" rx="4" className={styles.note} />
+        <text x="104" y="23" className={styles.noteMark}>?</text>
+        <rect x="116" y="15" width="34" height="3" rx="1.5" className={styles.noteLine} />
       </motion.g>
       <motion.circle
-        cx="164" cy="32" r="6"
+        r="5.5"
         className={styles.dotNew}
-        variants={{ off: { scale: 0, opacity: 0 }, on: { scale: 1, opacity: 1 } }}
-        transition={t({ ...spring.flight, delay: 1.0 })}
-        style={{ transformBox: "fill-box", transformOrigin: "center" }}
+        variants={{ off: { cx: 120, cy: 120, opacity: 0 }, on: { cx: 186, cy: 40, opacity: 1 } }}
+        transition={t({ ...spring.flight, delay: 1.3 })}
       />
-      <motion.circle
-        cx="164" cy="32" r="6"
-        className={styles.ring}
-        variants={{ off: { scale: 0.6, opacity: 0 }, on: { scale: 3.2, opacity: [0, 0.9, 0] } }}
-        transition={t({ duration: 1.2, delay: 1.15, ease: ease.outExpo })}
-        style={{ transformBox: "fill-box", transformOrigin: "center" }}
-      />
-    </motion.svg>
-  );
-}
-
-/** Problem section: a spread of dots that collapses toward one spot. */
-export function ArtNarrowing() {
-  const t = useT();
-  const dots = Array.from({ length: 14 }, (_, i) => {
-    const a = (i / 14) * Math.PI * 2;
-    const r = 34 + (i % 3) * 14;
-    return { x: 120 + Math.cos(a) * r * 1.6, y: 60 + Math.sin(a) * r * 0.9, i };
-  });
-  return (
-    <motion.svg viewBox="0 0 240 120" className={styles.artWide} initial="off" whileInView="on" viewport={VIEW} aria-hidden="true">
-      {dots.map((d) => (
-        <motion.circle
-          key={d.i}
-          r="4.5"
-          className={styles.dotSoft}
-          variants={{
-            off: { cx: d.x, cy: d.y },
-            on: { cx: 120 + (d.x - 120) * 0.32, cy: 60 + (d.y - 60) * 0.34 },
-          }}
-          transition={t({ ...spring.settle, delay: 0.4 + d.i * 0.03 })}
-        />
-      ))}
-    </motion.svg>
+    </Svg>
   );
 }
 

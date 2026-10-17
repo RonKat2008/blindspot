@@ -18,7 +18,7 @@ export function Reveal({ children, className, delay = 0, as = "div" }: RevealPro
   return (
     <Tag
       className={className}
-      initial={isReduced ? { opacity: 0 } : { opacity: 0, y: 22 }}
+      initial={{ opacity: 0, y: 22 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "0px 0px -12% 0px" }}
       transition={isReduced ? reducedTransition : { ...spring.gentle, delay }}

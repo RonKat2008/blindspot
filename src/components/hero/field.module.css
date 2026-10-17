@@ -1,0 +1,127 @@
+/* Background thought map behind the hero headline. Tokens from .root in landing.module.css. */
+
+.field {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  /* Fade the map out under the headline so the type stays crisp. */
+  -webkit-mask-image: radial-gradient(ellipse 36% 30% at 50% 50%, transparent 35%, rgb(0 0 0 / 0.35) 70%, #000 100%);
+  mask-image: radial-gradient(ellipse 36% 30% at 50% 50%, transparent 35%, rgb(0 0 0 / 0.35) 70%, #000 100%);
+}
+
+.parallax {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+.svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.thread {
+  fill: none;
+  stroke: var(--ink-soft);
+  stroke-opacity: 0.32;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+}
+
+.dot {
+  fill: var(--ink);
+  fill-opacity: 0.72;
+}
+
+.label {
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 500;
+  fill: var(--ink-soft);
+  fill-opacity: 0.8;
+}
+
+.dotNew {
+  fill: var(--signal);
+  stroke: var(--paper);
+  stroke-width: 2.5;
+}
+
+.labelNew {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--ink);
+}
+
+.ring {
+  fill: none;
+  stroke: var(--signal);
+  stroke-width: 1.4;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.hatchRing {
+  fill: none;
+  stroke: var(--signal);
+  stroke-opacity: 0.7;
+  stroke-width: 1.2;
+  stroke-dasharray: 4 5;
+}
+
+.bob {
+  animation: bob 7s ease-in-out infinite;
+}
+
+@keyframes bob {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(0, -4px); }
+}
+
+.note {
+  position: absolute;
+  max-width: 220px;
+  padding: 12px 14px 13px;
+  border-radius: 6px 6px 14px 6px;
+  background: var(--question-bg);
+  color: oklch(97% 0.01 250);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 15px;
+  line-height: 1.3;
+  box-shadow: 0 14px 30px -14px oklch(25% 0.08 255 / 0.55);
+}
+
+.noteLabel {
+  display: block;
+  margin-bottom: 4px;
+  font-family: var(--font-ui);
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: oklch(85% 0.05 250);
+}
+
+@media (max-width: 640px) {
+  .field {
+    -webkit-mask-image: linear-gradient(#000 0 18%, rgb(0 0 0 / 0.12) 30%, rgb(0 0 0 / 0.12) 74%, #000 86%);
+    mask-image: linear-gradient(#000 0 18%, rgb(0 0 0 / 0.12) 30%, rgb(0 0 0 / 0.12) 74%, #000 86%);
+  }
+  .label,
+  .labelNew,
+  .note {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bob {
+    animation: none;
+  }
+}
