@@ -1,0 +1,35 @@
+/* Scoped copy of the docs/DESIGN.md tokens so /insights and /pitch render
+   correctly until the shared tokens land in globals.css. Values are identical. */
+.bs-scope {
+  --paper: oklch(97.5% 0.012 85);
+  --paper-raised: oklch(99% 0.006 85);
+  --paper-sunk: oklch(94% 0.016 85);
+  --rule: oklch(86% 0.02 80);
+  --ink: oklch(22% 0.02 60);
+  --ink-soft: oklch(45% 0.02 60);
+  --ink-faint: oklch(62% 0.015 60);
+  --signal: oklch(72% 0.17 62);
+  --signal-ink: oklch(45% 0.13 55);
+  --signal-wash: oklch(94% 0.05 75);
+  --accept: oklch(55% 0.12 160);
+  --calm: oklch(70% 0.09 190);
+  --axis-0: oklch(55% 0.13 250);
+  --axis-1: oklch(55% 0.14 330);
+  --axis-2: oklch(58% 0.12 150);
+  --axis-3: oklch(58% 0.13 30);
+  --axis-4: oklch(55% 0.1 280);
+  --font-display: var(--font-fraunces, "Iowan Old Style", "Palatino Linotype", Georgia, serif);
+  --font-ui: var(--font-geist-sans, system-ui, sans-serif);
+  --text-sm: 0.875rem;
+  --text-base: clamp(1rem, 0.95rem + 0.2vw, 1.0625rem);
+  --text-hero: clamp(2.5rem, 1.5rem + 4vw, 4.5rem);
+  --shadow-card: 0 1px 0 var(--rule), 0 12px 32px -12px oklch(30% 0.04 60 / 0.18);
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+.bs-scope .display { font-family: var(--font-display); font-optical-sizing: auto; }
+.bs-scope .tnum { font-variant-numeric: tabular-nums; }
+.bs-scope :focus-visible { outline: 2px solid var(--signal-ink); outline-offset: 3px; border-radius: 4px; }
