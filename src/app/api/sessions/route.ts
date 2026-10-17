@@ -1,5 +1,6 @@
 import { CreateSessionBody } from "@/lib/contract";
 import { proposeAxes } from "@/lib/prompts";
+import { describePoles } from "@/lib/prompts/poles";
 import { embedMany } from "@/lib/ai";
 import { body, check, db, failure, mapAxis, publicAxis } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
@@ -11,7 +12,8 @@ export async function POST(request: Request): Promise<Response> {
     const input = await body(request, CreateSessionBody);
     const user = await getCurrentUser();
     const proposed = await proposeAxes(input.prompt);
-    const vectors = await embedMany(proposed.flatMap(a => [a.poleA, a.poleB]));
+    const described = await describePoles(proposed);
+    const vectors = await embedMany(described.flatMap(a => [a.poleA, a.poleB]));
     const client = db();
     const sessionId = crypto.randomUUID();
     const session = await client.from("sessions").insert({ id: sessionId, prompt: input.prompt, team_name: input.teamName ?? null, ...(user ? { owner_id: user.id } : {}) });

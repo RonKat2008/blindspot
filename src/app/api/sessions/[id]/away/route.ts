@@ -1,5 +1,5 @@
 import type { AwayResponse } from "@/lib/supabase/account-types";
-import { check, db, failure, HttpError, validId } from "@/lib/db";
+import { check, db, failure, validId } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { loadProfiles, ownMembership } from "@/lib/supabase/members";
 export const dynamic = "force-dynamic";
@@ -12,10 +12,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   try {
     const id = validId((await params).id);
     const user = await getCurrentUser();
-    if (!user) throw new HttpError(401, "Sign in to see what changed");
+    const headers = { "Cache-Control": "no-store" };
+    // Guests have no "last seen" mark, so there is nothing to catch up on.
+    if (!user) return Response.json({ since: null, ideas: [], provocations: [] } satisfies AwayResponse, { headers });
     const membership = await ownMembership(user, id);
     const since = membership?.last_seen_at ?? null;
-    const headers = { "Cache-Control": "no-store" };
     if (!since) return Response.json({ since, ideas: [], provocations: [] } satisfies AwayResponse, { headers });
     const client = db();
     const [ideas, provocations] = await Promise.all([
