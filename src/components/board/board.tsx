@@ -7,8 +7,12 @@ import { Button } from "@/components/ui/button";
 import { RealityButton } from "@/components/reality-button";
 import { api } from "@/lib/api-client";
 import type { Idea, Provocation, SessionState } from "@/lib/contract";
+import type { AuthoredIdea } from "@/lib/supabase/account-types";
 import { spring } from "@/lib/motion";
-import { InviteButton, LensChips, PromptEntry } from "./board-header";
+import { AccountMenu } from "@/components/account/account-menu";
+import { AwayDigest } from "@/components/account/away-digest";
+import { InviteButton } from "@/components/account/invite-button";
+import { LensChips, PhoneQrButton, PromptEntry } from "./board-header";
 import type { HumanLink, PosMap, QuadKey } from "./board-utils";
 import {
   connectionsOf,
@@ -109,6 +113,7 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
   const [coachStep, setCoachStep] = useState(initialId ? 1 : 0);
   const [wrapOpen, setWrapOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [digestIds, setDigestIds] = useState<string[]>([]);
   const scripted = Boolean(snapshot);
   const state = snapshot ? snapshot.state : stateRaw;
   const prompt = snapshot ? snapshot.state.session.prompt : promptRaw;
@@ -438,13 +443,13 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
   const islandSet = new Set(islands);
 
   const occupied = new Set<QuadKey>(lensReady ? ideas.map((i) => quadOf(i, xAxis.id, yAxis.id)) : []);
-  const highlightIds: string[] = localNote ? localNote.ids : whyOpen && current ? current.why.ideaIds : [];
+  const highlightIds: string[] = localNote ? localNote.ids : whyOpen && current ? current.why.ideaIds : digestIds;
   const highlight = new Set(highlightIds);
 
   const claimed = new Set(Object.values(keyMap));
-  type Item = { key: string; id: string; text: string; speaker?: string; isPending: boolean; idea?: Idea };
+  type Item = { key: string; id: string; text: string; speaker?: string; authorColor?: string; isPending: boolean; idea?: Idea };
   const items: Item[] = [
-    ...ideas.map((i) => ({ key: keyMap[i.id] ?? i.id, id: i.id, text: i.text, speaker: i.speaker, isPending: false, idea: i })),
+    ...ideas.map((i) => ({ key: keyMap[i.id] ?? i.id, id: i.id, text: i.text, speaker: (i as AuthoredIdea).authorName ?? i.speaker, authorColor: (i as AuthoredIdea).authorColor, isPending: false, idea: i })),
     ...pending.filter((p) => !claimed.has(p.tempId)).map((p) => ({ key: p.tempId, id: p.tempId, text: p.text, isPending: true })),
   ];
 
@@ -498,10 +503,12 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
                 {prompt}
               </motion.h1>
               <div className="flex shrink-0 items-center gap-1">
-                <InviteButton sessionId={sessionId} />
+                {sessionId && !scripted ? <InviteButton sessionId={sessionId} className="max-sm:hidden" /> : null}
+                {!scripted ? <PhoneQrButton sessionId={sessionId} /> : null}
                 <Button type="button" variant="outline" className="h-8 px-3" disabled={!ideas.length} onClick={() => setWrapOpen(true)}>
                   Wrap up
                 </Button>
+                {!scripted ? <AccountMenu className="ml-1" /> : null}
               </div>
             </div>
             <div data-tour="lens-bar" className="min-w-0">
@@ -511,6 +518,18 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
         )}
       </header>
 
+      {sessionId && !scripted ? (
+        <div className="relative z-10 px-4 sm:px-8">
+          <AwayDigest
+            sessionId={sessionId}
+            className="mt-2"
+            onHighlight={(ids) => {
+              setDigestIds(ids);
+              window.setTimeout(() => setDigestIds([]), 6000);
+            }}
+          />
+        </div>
+      ) : null}
       {/* ---------- board ---------- */}
       <div
         ref={viewportRef}
@@ -554,6 +573,7 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
               id={item.id}
               text={item.text}
               speaker={item.speaker}
+              authorColor={item.authorColor}
               color={stickyColor(item.speaker)}
               target={targetFor(item)}
               isPending={item.isPending}
@@ -688,7 +708,7 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
         </div>
       ) : null}
 
-      <div data-tour="question-note" className="pointer-events-none absolute top-[7.5rem] right-4 z-30 max-sm:top-auto max-sm:bottom-36 sm:right-8">
+      <div className="pointer-events-none absolute top-[7.5rem] right-4 z-30 max-sm:top-auto max-sm:bottom-36 sm:right-8">
         <QuestionNote
           note={note}
           whyOpen={whyOpen || Boolean(localNote)}

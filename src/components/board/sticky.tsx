@@ -13,6 +13,7 @@ type StickyProps = {
   text: string;
   color: string;
   speaker?: string;
+  authorColor?: string;
   target: StickyTarget;
   isPending?: boolean;
   isFresh?: boolean;
@@ -32,6 +33,7 @@ export function Sticky({
   text,
   color,
   speaker,
+  authorColor,
   target,
   isPending,
   isFresh,
@@ -88,7 +90,10 @@ export function Sticky({
     >
       <p className={cn("overflow-hidden break-words", compact ? "line-clamp-3 text-[1.05rem]" : "line-clamp-4")}>{text}</p>
       <div className="mt-auto flex items-center justify-between pt-1 text-[10px] tracking-wide text-ink-soft uppercase">
-        <span className="truncate">{speaker ?? ""}</span>
+        <span className="flex min-w-0 items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap">
+          {authorColor ? <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: authorColor }} /> : null}
+          {speaker ?? ""}
+        </span>
         {isPending ? <span className="text-signal-ink normal-case italic">placing…</span> : null}
         {isIsland && !isPending ? (
           <span className="hidden text-ink-soft normal-case italic group-hover:inline" title="Nothing else connects to this yet">

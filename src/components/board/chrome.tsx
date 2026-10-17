@@ -63,6 +63,7 @@ export function QuestionNote({
           key={note.id}
           aria-live="polite"
           aria-label="A question for you"
+          data-tour="question-note"
           variants={reduce ? undefined : cardSlide}
           initial={reduce ? { opacity: 0 } : "hidden"}
           animate={reduce ? { opacity: 1 } : "show"}
@@ -75,7 +76,7 @@ export function QuestionNote({
           </span>
           <p className="text-[11px] font-semibold tracking-[0.14em] text-[oklch(85%_0.1_75)] uppercase">A question for you</p>
           <p className="font-display mt-2 text-[1.1rem] leading-snug italic sm:text-[1.5rem]">{note.text}</p>
-          <motion.div layout={!reduce} transition={spring.gentle}>
+          <div>
             <button
               type="button"
               aria-expanded={whyOpen}
@@ -97,7 +98,7 @@ export function QuestionNote({
                 ) : null}
               </div>
             ) : null}
-          </motion.div>
+          </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button
               type="button"
