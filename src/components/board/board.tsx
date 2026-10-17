@@ -17,6 +17,8 @@ import { Inspector } from "./inspector";
 import type { MediaIdea, MediaType } from "./media";
 import { MediaComposer, type MediaDraft, type PlacedMedia, useRecorder } from "./media-composer";
 import { ThoughtInput } from "./thought-input";
+import type { ContextResult } from "./context-panel";
+import { ContextDrawer } from "./extras";
 import { type MapItem, ThoughtMap } from "./thought-map";
 import { AxisPick } from "./toolbar";
 import { TopBar } from "./top-bar";
@@ -49,7 +51,7 @@ function isTyping(): boolean {
  * The thought map. Live mode: pass `sessionId` (or nothing for a fresh board).
  * Scripted mode: pass `snapshot` (the /demo tour) — no network, no input, deterministic layout.
  */
-export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; snapshot?: BoardSnapshot }) {
+export function Board({ sessionId: initialId, snapshot, sandbox = false }: { sessionId?: string; snapshot?: BoardSnapshot; sandbox?: boolean }) {
   const scripted = Boolean(snapshot);
   const live = useBoardSession(initialId, !scripted);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -78,6 +80,8 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
   const [inspectHover, setInspectHover] = useState<string | null>(null);
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
   const [mediaDraft, setMediaDraft] = useState<MediaDraft | null>(null);
+  const [contextQuery, setContextQuery] = useState<string | null>(null);
+  const [sandboxBanner, setSandboxBanner] = useState(sandbox);
 
   const state = snapshot ? snapshot.state : live.state;
   const prompt = snapshot ? snapshot.state.session.prompt : live.prompt;
@@ -122,7 +126,7 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
     ...ideas
       .filter((i) => !hiddenSet.has(i.id))
       .map((i) => {
-        const m = i as MediaIdea & AuthoredIdea;
+        const m = i as Omit<AuthoredIdea, "mediaType"> & MediaIdea;
         const key = live.keyMap[i.id] ?? i.id;
         return {
           key,
@@ -243,6 +247,11 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
     live.addIdea(placed.label, placed.media);
   }
 
+  function pinSource(r: ContextResult) {
+    live.addIdea(r.title, { mediaType: "link", mediaUrl: r.url, caption: `${r.title} — ${r.snippet}` });
+    toast("Pinned to the board as a source.");
+  }
+
   function addThought(text: string) {
     live.addIdea(text);
     if (coachStep === 1) setCoachStep(2);
@@ -337,6 +346,16 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
         )}
       </header>
 
+      {sandboxBanner && !scripted ? (
+        <div role="status" className="relative z-10 flex items-center justify-between gap-3 border-b border-signal/40 bg-signal-wash px-4 py-2 text-sm text-ink sm:px-8">
+          <span>
+            <strong className="font-semibold">Sandbox board</strong> — real data, yours to play with. Try adding a thought, an image, or flip to Lens view.
+          </span>
+          <button type="button" aria-label="Dismiss" className="shrink-0 rounded-full px-2 text-ink-soft hover:text-ink" onClick={() => setSandboxBanner(false)}>
+            ✕
+          </button>
+        </div>
+      ) : null}
       {sessionId && !scripted ? (
         <div className="relative z-10 px-4 sm:px-8">
           <AwayDigest
@@ -488,6 +507,7 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
           onWhy={setWhyOpen}
           onAccept={() => void resolveNote("accepted")}
           onDismiss={() => void resolveNote("dismissed")}
+          onLookInto={sessionId && !scripted && note ? () => setContextQuery(note.text) : undefined}
         />
       </div>
 
@@ -510,6 +530,8 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
             onHoverRelated={setInspectHover}
             onRelated={setRelatedIds}
             onConnect={(id) => setConnectFrom(id)}
+            sessionId={sessionId}
+            onPin={pinSource}
             onShortlist={(id, next) => void live.updateIdea(id, { shortlisted: next })}
             onAssumption={(id) => void live.updateIdea(id, { kind: "assumption" })}
             onDelete={(id) => {
@@ -517,6 +539,9 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
               void live.removeIdea(id);
             }}
           />
+        ) : null}
+        {contextQuery && sessionId ? (
+          <ContextDrawer key="context" sessionId={sessionId} query={contextQuery} onPin={pinSource} onClose={() => setContextQuery(null)} />
         ) : null}
         {mediaDraft && sessionId ? (
           <MediaComposer key="media" draft={mediaDraft} sessionId={sessionId} onPlace={placeMedia} onClose={() => setMediaDraft(null)} />

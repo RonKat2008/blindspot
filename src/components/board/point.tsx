@@ -4,8 +4,9 @@ import { useRef } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { reducedTransition, spring } from "@/lib/motion";
+import { faviconFor } from "./context-panel";
 
-export type PointMedia = { type: "image" | "audio"; url?: string };
+export type PointMedia = { type: "image" | "audio" | "link"; url?: string };
 
 type PointProps = {
   id: string;
@@ -115,6 +116,19 @@ function Marker({ color, media, isSelected, isLit, isIsland, isPending, isAssump
       : "group-hover:ring-2 group-hover:ring-ink/30 group-hover:ring-offset-2 group-hover:ring-offset-paper";
 
   // Centre the marker on (x, y): the parent is positioned by the marker's centre.
+  if (media?.type === "link") {
+    const icon = media.url ? faviconFor(media.url) : undefined;
+    return (
+      <span className={cn("-mt-[11px] -ml-[11px] grid size-[22px] shrink-0 place-items-center rounded-[5px] border border-rule bg-paper-raised shadow-sm transition-shadow", ring)}>
+        {icon ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={icon} alt="" width={14} height={14} draggable={false} className="size-3.5 rounded-[2px]" />
+        ) : (
+          <span className="text-[10px] text-ink-soft">↗</span>
+        )}
+      </span>
+    );
+  }
   if (media?.type === "image") {
     return (
       <span className={cn("-mt-[14px] -ml-[14px] block size-7 shrink-0 overflow-hidden rounded-full border-2 border-paper-raised bg-paper-sunk shadow-sm transition-shadow", ring)}>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import type { SessionState } from "@/lib/contract";
 import type { AuthoredIdea } from "@/lib/supabase/account-types";
 import { reducedTransition, spring } from "@/lib/motion";
+import { ContextPanel, type ContextResult, domainOf, faviconFor, safeUrl } from "./context-panel";
 import { fetchRelated, localRelated, type MediaIdea, type Related } from "./media";
 
 type InspectorProps = {
@@ -19,12 +20,15 @@ type InspectorProps = {
   onAssumption: (id: string) => void;
   onDelete: (id: string) => void;
   onConnect: (id: string) => void;
+  sessionId: string | null;
+  onPin: (r: ContextResult) => void;
 };
 
-export function Inspector({ ideaId, state, onClose, onJump, onHoverRelated, onRelated, onShortlist, onAssumption, onDelete, onConnect }: InspectorProps) {
+export function Inspector({ ideaId, state, onClose, onJump, onHoverRelated, onRelated, onShortlist, onAssumption, onDelete, onConnect, sessionId, onPin }: InspectorProps) {
   const reduce = useReducedMotion();
-  const idea = state.ideas.find((i) => i.id === ideaId) as (MediaIdea & AuthoredIdea) | undefined;
+  const idea = state.ideas.find((i) => i.id === ideaId) as (Omit<AuthoredIdea, "mediaType"> & MediaIdea) | undefined;
   const [related, setRelated] = useState<Related>(() => localRelated(ideaId, state));
+  const [contextOpen, setContextOpen] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -81,6 +85,15 @@ export function Inspector({ ideaId, state, onClose, onJump, onHoverRelated, onRe
             <img src={idea.mediaUrl} alt={idea.mediaCaption ?? idea.text} className="mb-3 w-full rounded-lg border border-rule object-cover" />
           ) : null}
           {idea.mediaType === "audio" && idea.mediaUrl ? <audio controls src={idea.mediaUrl} className="mb-3 w-full" /> : null}
+          {idea.mediaType === "link" && idea.mediaUrl ? (
+            <p className="mb-2 flex items-center gap-1.5 text-xs text-ink-soft">
+              {faviconFor(idea.mediaUrl) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={faviconFor(idea.mediaUrl)} alt="" width={14} height={14} className="size-3.5 rounded-sm" />
+              ) : null}
+              {domainOf(idea.mediaUrl)} · a source pinned from the web
+            </p>
+          ) : null}
           <p className={`font-display leading-snug ${idea.text.length > 90 ? "text-lg" : "text-[1.4rem]"}`}>{idea.text}</p>
           {idea.mediaCaption && !idea.mediaCaption.startsWith(idea.text.replace(/…$/, "").slice(0, 40)) ? (
             <p className="mt-1 line-clamp-4 text-sm text-ink-soft italic">{idea.mediaCaption}</p>
@@ -90,6 +103,16 @@ export function Inspector({ ideaId, state, onClose, onJump, onHoverRelated, onRe
             {author} · {Number.isNaN(when.getTime()) ? "" : when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
             {idea.kind === "assumption" ? " · assumption" : ""}
           </p>
+          {idea.mediaType === "link" && idea.mediaUrl && safeUrl(idea.mediaUrl) ? (
+            <a
+              href={safeUrl(idea.mediaUrl)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex h-9 items-center rounded-lg border border-rule px-3 text-sm text-ink transition-colors hover:bg-paper-sunk"
+            >
+              Open link ↗
+            </a>
+          ) : null}
         </section>
 
         <section>
@@ -112,6 +135,18 @@ export function Inspector({ ideaId, state, onClose, onJump, onHoverRelated, onRe
             ))}
           </ul>
         </section>
+
+        {sessionId ? (
+          <section>
+            {contextOpen ? (
+              <ContextPanel sessionId={sessionId} ideaId={idea.id} onPin={onPin} />
+            ) : (
+              <Button type="button" variant="outline" className="h-9 w-full" onClick={() => setContextOpen(true)}>
+                Find context on the web
+              </Button>
+            )}
+          </section>
+        ) : null}
 
         <RelatedList title="Connected ideas" items={related.nearest} onJump={onJump} onHover={onHoverRelated} empty="Nothing connects to this yet. It's an island." />
         <RelatedList title="Furthest from this" items={related.farthest} onJump={onJump} onHover={onHoverRelated} empty="Add more ideas to see the far side." showBar={false} />
