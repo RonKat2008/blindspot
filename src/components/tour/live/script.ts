@@ -1,0 +1,168 @@
+// The live run: real session, real lenses, real ideas and photos, real question.
+import { $, buttonWithText, Director, pickImage, pressEnter, stickyWithText } from "./director";
+
+export const LIVE_PROMPT = "How might we make a new hire's first week great?";
+
+export const SAFE_IDEAS = [
+  "Shorter signup form",
+  "Welcome email with three tips",
+  "Progress checklist in the app",
+  "Skip button on the tutorial",
+  "Short help videos",
+  "Pre-filled sample project",
+] as const;
+
+export const GAP_IMAGE_LABEL = "Pair every new hire with a buddy for week one";
+export const GAP_TEXT_IDEA = "Let new hires run the Friday demo";
+
+export type LiveStep = {
+  id: string;
+  caption: string;
+  run: (d: Director, say: (caption: string) => void) => Promise<void>;
+};
+
+const MISSED = "Taking longer than usual, so we're moving on.";
+
+function textareaBy(selector: string): HTMLTextAreaElement | null {
+  return document.querySelector<HTMLTextAreaElement>(selector);
+}
+
+function lensButtons(): HTMLButtonElement[] {
+  return Array.from(document.querySelectorAll<HTMLButtonElement>('[data-tour="lens-toggle"] button'));
+}
+
+async function setView(d: Director, view: "board" | "lens"): Promise<void> {
+  const btn = lensButtons()[view === "board" ? 0 : 1];
+  btn?.click();
+  await d.sleep(900);
+}
+
+async function addText(d: Director, say: (c: string) => void, text: string): Promise<boolean> {
+  const add = $('[data-tour="add-sticky"]');
+  if (!add) return false;
+  add.click();
+  const box = await d.waitFor(() => textareaBy('textarea[aria-label="New idea"]'), 4000);
+  if (!box) return false;
+  await d.type(box, text, 38);
+  await d.sleep(250);
+  pressEnter(box);
+  const landed = await d.waitFor(() => stickyWithText(text), 20_000);
+  if (!landed) say(MISSED);
+  return Boolean(landed);
+}
+
+async function addImage(d: Director, say: (c: string) => void, url: string, name: string, label?: string): Promise<boolean> {
+  const ok = await pickImage(url, name).catch(() => false);
+  if (!ok) return false;
+  const dialog = await d.waitFor(() => $('[role="dialog"][aria-label="Place an image"]'), 5000);
+  if (!dialog) return false;
+  const done = await d.waitFor(() => {
+    const text = dialog.textContent ?? "";
+    return text.includes("Described.") || text.includes("Couldn't read");
+  }, 35_000);
+  if (!done) say(MISSED);
+  const field = textareaBy("#bs-media-label");
+  await d.sleep(1600);
+  if (label && field) {
+    await d.type(field, label, 32);
+    await d.sleep(400);
+  }
+  const placeBtn = await d.waitFor(() => buttonWithText("Place it", dialog), 3000);
+  if (!placeBtn) {
+    buttonWithText("Cancel", dialog)?.click();
+    return false;
+  }
+  placeBtn.click();
+  const placedText = label ?? field?.value ?? "";
+  const landed = placedText ? await d.waitFor(() => stickyWithText(placedText), 20_000) : null;
+  return Boolean(landed);
+}
+
+export const LIVE_STEPS: readonly LiveStep[] = [
+  {
+    id: "prompt",
+    caption: "A fresh, real board. Typing the team's question.",
+    async run(d, say) {
+      const box = await d.waitFor(() => textareaBy("#bs-prompt"), 10_000);
+      if (!box) return say(MISSED);
+      await d.sleep(600);
+      await d.type(box, LIVE_PROMPT, 45);
+      await d.sleep(400);
+      pressEnter(box);
+    },
+  },
+  {
+    id: "lenses",
+    caption: "Blind Spot picks lenses for this problem: frames, not answers.",
+    async run(d, say) {
+      const ready = await d.waitFor(() => ($('[data-tour="lens-bar"]')?.textContent ?? "").includes("↔"), 40_000);
+      if (!ready) return say(MISSED);
+      await d.sleep(2500);
+    },
+  },
+  {
+    id: "ideas",
+    caption: "The team adds ideas. Notice: all safe, all individual.",
+    async run(d, say) {
+      for (const [i, idea] of SAFE_IDEAS.entries()) {
+        say(`The team adds ideas (${i + 1}/${SAFE_IDEAS.length}). All safe, all individual.`);
+        await addText(d, say, idea);
+        await d.sleep(600);
+      }
+    },
+  },
+  {
+    id: "photos",
+    caption: "Photos count too. The AI only describes them; a human places them.",
+    async run(d, say) {
+      await addImage(d, say, "/tour/sticky-wall.jpeg", "sticky-wall.jpeg");
+      await d.sleep(800);
+      await addImage(d, say, "/tour/phone-checklist.jpeg", "phone-checklist.jpeg");
+    },
+  },
+  {
+    id: "question",
+    caption: "Waiting for Blind Spot to notice a pattern…",
+    async run(d, say) {
+      const note = await d.waitFor(() => $('[data-tour="question-note"]'), 20_000);
+      if (!note) return say("No question this time: the spread was already wide. Moving on.");
+      say("A question, not an idea.");
+      await d.sleep(3000);
+      note.querySelector<HTMLButtonElement>("button[aria-expanded]")?.click();
+      say("“Why am I seeing this?” shows the exact pattern and notes behind it.");
+      await d.sleep(5000);
+    },
+  },
+  {
+    id: "lens",
+    caption: "Lens view: the shaded corner is where nobody has looked yet.",
+    async run(d) {
+      await setView(d, "lens");
+      await d.sleep(5000);
+    },
+  },
+  {
+    id: "answer",
+    caption: "A human answers the question, with a photo and a note.",
+    async run(d, say) {
+      await setView(d, "board");
+      await addImage(d, say, "/tour/buddy-pairing.jpeg", "buddy-pairing.jpeg", GAP_IMAGE_LABEL);
+      await d.sleep(600);
+      await addText(d, say, GAP_TEXT_IDEA);
+      await d.sleep(800);
+      say("Back to Lens view: see where the human's answers land, and watch Range move.");
+      await setView(d, "lens");
+      await d.sleep(5500);
+    },
+  },
+  {
+    id: "inspect",
+    caption: "Open any point: real connections, and why they're related.",
+    async run(d, say) {
+      const point = stickyWithText(GAP_IMAGE_LABEL) ?? stickyWithText(GAP_TEXT_IDEA);
+      if (!point) return say(MISSED);
+      point.click();
+      await d.sleep(6500);
+    },
+  },
+];

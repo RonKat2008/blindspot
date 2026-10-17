@@ -103,6 +103,16 @@ export function Tour({ initialIndex, initialAutoplay }: Props) {
             {isPaused ? "Paused · Space to resume" : "Space to pause · Esc to exit"}
           </p>
         ) : (
+          <div className="flex items-center gap-2">
+          <a
+            href="/tour?live=1"
+            className={cn(
+              "rounded-full bg-ink px-4 py-1.5 text-sm text-paper-raised transition-transform hover:-translate-y-px active:scale-[0.97]",
+              FOCUS,
+            )}
+          >
+            ● Watch it live
+          </a>
           <button
             type="button"
             onClick={startVideo}
@@ -111,8 +121,9 @@ export function Tour({ initialIndex, initialAutoplay }: Props) {
               FOCUS,
             )}
           >
-            ▶ Autoplay for video
+            ▶ Autoplay<span className="max-sm:hidden"> for video</span>
           </button>
+          </div>
         )}
       </header>
 
