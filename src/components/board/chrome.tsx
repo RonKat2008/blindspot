@@ -13,6 +13,10 @@ const PATTERN_NAMES: Record<Provocation["type"], string> = {
   duplicate: "Twin ideas",
   abandoned: "A lonely idea",
   unexplored: "Unused lens",
+  bridge: "A bridge",
+  voice: "One voice",
+  shortlist: "A lopsided shortlist",
+  assumption: "A shared assumption",
 };
 
 export type QuestionNoteData = {
