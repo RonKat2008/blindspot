@@ -12,7 +12,8 @@
     "db:types": "npx supabase gen types typescript --linked > src/lib/supabase/database.types.ts",
     "preflight": "node scripts/preflight.mjs",
     "db:types:local": "npx supabase gen types typescript --local > src/lib/supabase/database.types.ts",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "record": "npx tsx scripts/record-demo.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
