@@ -20,6 +20,8 @@ export const PATTERN_TYPES: readonly PatternType[] = [
 ] as const;
 
 export type IdeaSource = "typed" | "voice" | "photo";
+/** What a point is made of. Text points have no media fields. */
+export type MediaType = "text" | "image" | "audio";
 export type ProvocationStatus = "shown" | "accepted" | "dismissed";
 export type DeviceRole = "contributor" | "ambient";
 
@@ -53,6 +55,12 @@ export type Idea = {
   pca?: { x: number; y: number };
   board?: { x: number; y: number };
   color?: string;
+  /** Absent or "text" for plain ideas. */
+  mediaType?: MediaType;
+  /** Public URL in the idea-media bucket (image or audio). */
+  mediaUrl?: string;
+  /** AI description of an image, or the transcript of a voice note. Never an idea. */
+  mediaCaption?: string;
   createdAt: string; // ISO
 };
 
@@ -152,14 +160,27 @@ export const UpdateIdeaBody = z.object({
   shortlisted: z.boolean().optional(),
 }).strict().refine(value => Object.values(value).some(v => v !== undefined), { message: "At least one update is required" });
 
+export const MEDIA_CAPTION_MAX = 400;
+export const IdeaMediaInput = z.object({
+  mediaType: z.enum(["image", "audio"]),
+  mediaUrl: z.url().max(1000),
+  caption: z.string().trim().max(MEDIA_CAPTION_MAX).optional(),
+});
+export type IdeaMediaInput = z.infer<typeof IdeaMediaInput>;
+
 export const AddIdeasBody = z.object({
-  texts: z.array(z.string().trim().min(1).max(IDEA_TEXT_MAX)).min(1).max(20),
+  /** A text may be "" only when the matching media item is present (an unlabeled image/voice note). */
+  texts: z.array(z.string().trim().max(IDEA_TEXT_MAX)).min(1).max(20),
+  /** Optional, parallel to texts: null/absent entries are plain text ideas. */
+  media: z.array(IdeaMediaInput.nullable()).max(20).optional(),
   source: z.enum(["typed", "voice", "photo"]).default("typed"),
   speaker: z.string().trim().max(40).optional(),
   deviceId: z.string().optional(),
   positions: z.array(BoardPosition.nullable()).max(20).optional(),
   color: z.string().trim().min(1).max(40).optional(),
-}).refine(value => !value.positions || value.positions.length === value.texts.length, { message: "positions must match texts length" });
+}).refine(value => !value.positions || value.positions.length === value.texts.length, { message: "positions must match texts length" })
+  .refine(value => !value.media || value.media.length === value.texts.length, { message: "media must match texts length" })
+  .refine(value => value.texts.every((t, i) => t.length > 0 || Boolean(value.media?.[i])), { message: "Each idea needs text or media" });
 export type AddIdeasBody = z.input<typeof AddIdeasBody>;
 export type AddIdeasResponse = {
   ideas: Idea[]; // the newly created ideas
@@ -197,6 +218,29 @@ export type RealityBody = z.infer<typeof RealityBody>;
 export type RealityResponse = { queries: string[]; resultCounts: number[] };
 
 export type ErrorResponse = { error: string };
+
+// ---------- Media points ----------
+// POST /api/media/upload    multipart {file, sessionId}  -> MediaUploadResponse
+// POST /api/media/describe  MediaDescribeBody            -> MediaDescribeResponse
+// GET  /api/ideas/[id]/related                           -> RelatedResponse
+export type MediaUploadResponse = { url: string; mediaType: "image" | "audio" };
+export const MediaDescribeBody = z.object({
+  url: z.url().max(1000),
+  mediaType: z.enum(["image", "audio"]),
+});
+export type MediaDescribeBody = z.infer<typeof MediaDescribeBody>;
+export type MediaDescribeResponse = { caption: string };
+export type RelatedResponse = {
+  ideaId: string;
+  /** Top 5 by cosine similarity. `why` (<= 10 words) is absent when the model was slow or the guard rejected it. */
+  nearest: { id: string; text: string; similarity: number; why?: string }[];
+  /** Bottom 2 by cosine similarity. */
+  farthest: { id: string; text: string; similarity: number }[];
+  /** Every lens, strongest leaning first. score in [-1, 1]; -1 = poleA, +1 = poleB. */
+  lensLeanings: { axisId: string; poleA: string; poleB: string; score: number }[];
+  /** Questions (provocations) that reference this idea, oldest first. */
+  questions: { id: string; text: string; type: PatternType; status: ProvocationStatus }[];
+};
 
 // ---------- Prompts module interface (src/lib/prompts/index.ts implements this) ----------
 
