@@ -185,8 +185,10 @@ export function LensChips({
 
 export function PhoneQrButton({ sessionId }: { sessionId: string | null }) {
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"join" | "ar">("join");
   if (!sessionId) return null;
-  const url = typeof window === "undefined" ? `/join/${sessionId}` : `${window.location.origin}/join/${sessionId}`;
+  const path = `/${mode}/${sessionId}`;
+  const url = typeof window === "undefined" ? path : `${window.location.origin}${path}`;
   return (
     <div className="relative">
       <Button type="button" variant="ghost" className="h-8 px-2.5" aria-expanded={open} title="Add ideas from a phone" onClick={() => setOpen((v) => !v)}>
@@ -206,8 +208,21 @@ export function PhoneQrButton({ sessionId }: { sessionId: string | null }) {
             exit={{ opacity: 0, y: -4 }}
             className="absolute top-full right-0 z-50 mt-2 w-56 rounded-2xl border border-rule bg-paper-raised p-4 shadow-[var(--shadow-card)]"
           >
+            <div role="group" aria-label="Phone mode" className="mb-3 flex rounded-xl border border-rule p-0.5 text-xs">
+              {(["join", "ar"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  aria-pressed={mode === m}
+                  onClick={() => setMode(m)}
+                  className={`flex-1 rounded-lg px-2 py-1 transition-colors ${mode === m ? "bg-ink text-paper" : "text-ink-soft hover:text-ink"}`}
+                >
+                  {m === "join" ? "Add ideas" : "AR view"}
+                </button>
+              ))}
+            </div>
             <QRCodeSVG value={url} size={120} bgColor="transparent" className="mx-auto" />
-            <p className="mt-2 text-center text-sm">Add ideas from your phone</p>
+            <p className="mt-2 text-center text-sm">{mode === "join" ? "Add ideas from your phone" : "See the map around you"}</p>
             <p className="mt-1 truncate text-center text-[11px] text-ink-soft">{url}</p>
           </motion.div>
         ) : null}
