@@ -48,6 +48,12 @@ export function HeroIntro() {
           Watch it live
         </Link>
       </motion.div>
+
+      <motion.p className={styles.sandbox} {...item(3)}>
+        <Link href="/play" className={styles.sandboxLink}>
+          or try a sandbox board with real data <span aria-hidden="true">→</span>
+        </Link>
+      </motion.p>
     </div>
   );
 }

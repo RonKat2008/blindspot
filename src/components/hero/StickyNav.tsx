@@ -34,6 +34,7 @@ export function StickyNav() {
         </Link>
         <nav aria-label="Main" className={styles.navLinks}>
           <Link href="/tour" className={`${styles.navLink} ${styles.navOptional}`}>Tour</Link>
+          <Link href="/play" className={`${styles.navLink} ${styles.navOptional}`}>Sandbox</Link>
           <Link href="/why" className={`${styles.navLink} ${styles.navOptional}`}>Why</Link>
           <Link href="/login" className={styles.navLink}>Sign in</Link>
           <Link href="/new" className={styles.navButton}>New board</Link>
