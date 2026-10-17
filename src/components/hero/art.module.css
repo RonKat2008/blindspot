@@ -1,0 +1,100 @@
+/* Small section illustrations + feature icons. Tokens from .root in landing.module.css. */
+
+.art {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 260px;
+  overflow: visible;
+}
+
+.artWide {
+  display: block;
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+  overflow: visible;
+}
+
+.noteShadow {
+  filter: drop-shadow(0 4px 5px oklch(30% 0.04 60 / 0.18));
+}
+
+.scribble {
+  fill: var(--ink);
+  opacity: 0.35;
+}
+
+.thread {
+  fill: none;
+  stroke: var(--ink-soft);
+  stroke-opacity: 0.5;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.axisX,
+.axisY {
+  fill: none;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+.axisX { stroke: var(--axis-0); }
+.axisY { stroke: var(--axis-1); }
+
+.gap {
+  fill: var(--signal-wash);
+  stroke: var(--signal);
+  stroke-width: 1.3;
+  stroke-dasharray: 4 4;
+}
+
+.dot { fill: var(--ink); }
+.dotSoft { fill: var(--ink-soft); opacity: 0.85; }
+
+.dotNew {
+  fill: var(--signal);
+  stroke: var(--paper-raised);
+  stroke-width: 2;
+}
+
+.ring {
+  fill: none;
+  stroke: var(--signal);
+  stroke-width: 1.5;
+}
+
+.question { fill: var(--question-bg); }
+
+.questionMark {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 18px;
+  fill: oklch(92% 0.04 250);
+}
+
+.questionLine {
+  fill: oklch(92% 0.04 250);
+  opacity: 0.7;
+}
+
+.icon {
+  width: 56px;
+  height: 56px;
+  overflow: visible;
+}
+
+.iconNote { fill: var(--note-butter); stroke: oklch(80% 0.07 90); stroke-width: 1; }
+.iconNoteAlt { fill: var(--note-mint); stroke: oklch(80% 0.05 160); stroke-width: 1; }
+.iconFrame { fill: var(--paper-raised); stroke: var(--ink); stroke-width: 1.8; }
+.iconInk { fill: var(--ink); }
+.iconSignal { fill: var(--signal); }
+.iconGlow { fill: var(--signal); opacity: 0.22; }
+
+.iconStroke {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
