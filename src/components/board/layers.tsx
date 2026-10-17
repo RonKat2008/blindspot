@@ -149,6 +149,8 @@ export function LensGrid({
   const reduce = useReducedMotion();
   const fade = reduce ? reducedTransition : { duration: duration.slow, ease: ease.outExpo };
   const halfW = box.width / 2;
+  // wide screens: x poles sit outside the frame at either end of the axis
+  const outside = box.left >= 100;
   const halfH = box.height / 2;
   const xColor = `var(--axis-${xAxis.position % 6})`;
   const yColor = `var(--axis-${yAxis.position % 6})`;
@@ -199,8 +201,8 @@ export function LensGrid({
       <div className="absolute h-px" style={{ left: box.left, top: box.top + halfH, width: box.width, background: xColor, opacity: 0.6 }} />
       <div className="absolute w-px" style={{ left: box.left + halfW, top: box.top, height: box.height, background: yColor, opacity: 0.6 }} />
       {/* pole labels */}
-      <PoleLabel text={xAxis.poleA} color={xColor} style={{ left: box.left + 6, top: box.top + halfH + 8, maxWidth: halfW - 12 }} align="left" arrow="←" />
-      <PoleLabel text={xAxis.poleB} color={xColor} style={{ left: box.left + box.width - 6, top: box.top + halfH + 8, transform: "translateX(-100%)", maxWidth: halfW - 12 }} align="right" arrow="→" />
+      <PoleLabel text={xAxis.poleA} color={xColor} style={outside ? { left: box.left - 10, top: box.top + halfH, transform: "translate(-100%, -50%)", maxWidth: box.left - 18 } : { left: box.left, top: box.top + box.height + 8, maxWidth: halfW - 70 }} align={outside ? "right" : "left"} arrow="←" />
+      <PoleLabel text={xAxis.poleB} color={xColor} style={outside ? { left: box.left + box.width + 10, top: box.top + halfH, transform: "translateY(-50%)", maxWidth: 130 } : { left: box.left + box.width, top: box.top + box.height + 8, transform: "translateX(-100%)", maxWidth: halfW - 70 }} align="left" arrow="→" />
       <PoleLabel text={yAxis.poleB} color={yColor} style={{ left: box.left + halfW, top: box.top - 36, transform: "translateX(-50%)" }} align="center" arrow="↑" />
       <PoleLabel text={yAxis.poleA} color={yColor} style={{ left: box.left + halfW, top: box.top + box.height + 8, transform: "translateX(-50%)" }} align="center" arrow="↓" />
     </motion.div>
@@ -225,7 +227,7 @@ function PoleLabel({
       className="absolute rounded-full border bg-paper-raised/95 px-2.5 py-1 text-xs leading-tight font-semibold shadow-sm max-sm:max-w-[42vw] max-sm:text-[11px]"
       style={{ ...style, color, borderColor: color, textAlign: align }}
     >
-      {align === "right" ? `${text} ${arrow}` : `${arrow} ${text}`}
+      {arrow === "→" ? `${text} ${arrow}` : `${arrow} ${text}`}
     </span>
   );
 }

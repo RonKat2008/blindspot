@@ -69,18 +69,18 @@ export function QuestionNote({
           animate={reduce ? { opacity: 1 } : "show"}
           exit={reduce ? { opacity: 0 } : "exit"}
           transition={reduce ? reducedTransition : spring.gentle}
-          className="pointer-events-auto relative w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-[20px] bg-[oklch(30%_0.08_255)] p-4 sm:p-5 text-[oklch(96%_0.01_85)] shadow-[0_24px_48px_-20px_oklch(25%_0.08_255/0.7)]"
+          className="pointer-events-auto relative w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl bg-[oklch(30%_0.08_255)] px-4 py-3 sm:rounded-[20px] sm:p-5 text-[oklch(96%_0.01_85)] shadow-[0_24px_48px_-20px_oklch(25%_0.08_255/0.7)]"
         >
-          <span aria-hidden className="font-display pointer-events-none absolute -top-6 -right-1 text-[8rem] leading-none text-white/10 italic">
+          <span aria-hidden className="font-display pointer-events-none absolute -top-6 -right-1 text-[8rem] leading-none text-white/10 italic max-sm:hidden">
             ?
           </span>
           <p className="text-[11px] font-semibold tracking-[0.14em] text-[oklch(85%_0.1_75)] uppercase">A question for you</p>
-          <p className="font-display mt-2 text-[1.1rem] leading-snug italic sm:text-[1.5rem]">{note.text}</p>
+          <p className="font-display mt-1 line-clamp-3 text-[1.02rem] leading-snug italic sm:mt-2 sm:line-clamp-none sm:text-[1.5rem]">{note.text}</p>
           <div>
             <button
               type="button"
               aria-expanded={whyOpen}
-              className="mt-3 text-sm text-white/70 underline decoration-white/30 underline-offset-4 transition-colors hover:text-white focus-visible:text-white"
+              className="mt-2 text-xs text-white/70 underline decoration-white/30 underline-offset-4 transition-colors hover:text-white focus-visible:text-white sm:mt-3 sm:text-sm"
               onClick={() => onWhy(!whyOpen)}
             >
               {whyOpen ? "Hide why" : "Why am I seeing this?"}
@@ -99,12 +99,12 @@ export function QuestionNote({
               </div>
             ) : null}
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2 sm:mt-4">
             <Button
               type="button"
               disabled={busy}
               onClick={onAccept}
-              className="h-9 bg-[oklch(85%_0.12_75)] px-4 text-ink hover:bg-[oklch(89%_0.12_75)]"
+              className="h-8 bg-[oklch(85%_0.12_75)] px-3 text-ink hover:bg-[oklch(89%_0.12_75)] sm:h-9 sm:px-4"
             >
               I&rsquo;ll explore that
             </Button>
@@ -113,7 +113,7 @@ export function QuestionNote({
               variant="ghost"
               disabled={busy}
               onClick={onDismiss}
-              className="h-9 px-3 text-white/80 hover:bg-white/10 hover:text-white"
+              className="h-8 px-3 text-white/80 hover:bg-white/10 hover:text-white sm:h-9"
             >
               Not now
             </Button>

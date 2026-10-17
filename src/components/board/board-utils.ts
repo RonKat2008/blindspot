@@ -74,10 +74,10 @@ export function nextFreeSpot(taken: Pos[], width: number, top = 24): Pos {
 
 export type PlotBox = { left: number; top: number; width: number; height: number };
 
-export function plotBox(w: number, h: number, rightInset = 0): PlotBox {
-  const padX = w < 640 ? 16 : Math.max(48, w * 0.06);
+export function plotBox(w: number, h: number, rightInset = 0, bottomInset = 0): PlotBox {
+  const padX = w < 640 ? 16 : Math.max(130, w * 0.09);
   const padTop = 64;
-  const padBottom = w < 640 ? 120 : 96;
+  const padBottom = (w < 640 ? 120 : 96) + bottomInset;
   return { left: padX, top: padTop, width: Math.max(120, w - padX * 2 - rightInset), height: Math.max(120, h - padTop - padBottom) };
 }
 
@@ -85,14 +85,15 @@ export function plotBox(w: number, h: number, rightInset = 0): PlotBox {
 export function lensPoint(idea: Idea, xId: string, yId: string, box: PlotBox): { x: number; y: number } {
   const sx = clamp(idea.axisScores[xId] ?? 0);
   const sy = clamp(idea.axisScores[yId] ?? 0);
+  // inner plot: scores map onto 8–92% so the extremes don't sit on the frame
   return {
-    x: box.left + ((sx + 1) / 2) * box.width,
-    y: box.top + ((1 - sy) / 2) * box.height,
+    x: box.left + (0.08 + 0.84 * ((sx + 1) / 2)) * box.width,
+    y: box.top + (0.08 + 0.84 * ((1 - sy) / 2)) * box.height,
   };
 }
 
 function clamp(v: number): number {
-  return Math.max(-0.92, Math.min(0.92, v));
+  return Math.max(-1, Math.min(1, v));
 }
 
 export type QuadKey = "tl" | "tr" | "bl" | "br";

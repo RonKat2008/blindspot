@@ -8,6 +8,7 @@ import { lensPoint } from "./board-utils";
 import { forceLayout, type Vec } from "./force-layout";
 import { ConnectionsLayer, LensGrid } from "./layers";
 import { Point, type PointMedia } from "./point";
+import { relaxLabels } from "./relax-labels";
 
 export type MapItem = {
   key: string;
@@ -25,7 +26,9 @@ type Lens = { box: PlotBox; xAxis: Axis; yAxis: Axis; occupied: Set<QuadKey>; qu
 /** Space kept clear for the bottom input bar and the right-hand question note. */
 function boundsFor(w: number, h: number, noteOpen: boolean) {
   const right = w - (w < 640 ? 24 : 64) - (noteOpen && w >= 1024 ? 380 : 0);
-  return { left: w < 640 ? 24 : 56, top: 48, right: Math.max(160, right), bottom: Math.max(140, h - (w < 640 ? 150 : 120)) };
+  // on phones the question note sits at the bottom; keep the map above it
+  const bottomPad = w < 640 ? 110 + (noteOpen ? 170 : 0) : 120;
+  return { left: w < 640 ? 24 : 56, top: 40, right: Math.max(160, right), bottom: Math.max(140, h - bottomPad) };
 }
 
 /** Labels flip to the left of the dot when they would run off the right edge. */
@@ -96,20 +99,34 @@ export function ThoughtMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idKey, edgeKey, pinKey, bounds.left, bounds.top, bounds.right, bounds.bottom]);
 
-  function positionOf(item: MapItem): Vec {
-    if (lens && item.idea) {
-      const p = lensPoint(item.idea, lens.xAxis.id, lens.yAxis.id, lens.box);
-      return {
-        x: Math.min(lens.box.left + lens.box.width - 8, Math.max(lens.box.left + 8, p.x)),
-        y: Math.min(lens.box.top + lens.box.height - 8, Math.max(lens.box.top + 8, p.y)),
-      };
-    }
-    if (lens) return { x: lens.box.left + lens.box.width / 2, y: lens.box.top + lens.box.height + 24 };
-    return layout.get(item.id) ?? { x: size.w / 2, y: size.h / 2 };
+  // In lens view only saved ideas have a true position; pending points wait off-stage.
+  const shown = lens ? items.filter((i) => i.idea) : items;
+  const mobile = size.w < 640;
+  const truePos = new Map<string, Vec>();
+  for (const item of shown) {
+    truePos.set(
+      item.id,
+      lens && item.idea ? lensPoint(item.idea, lens.xAxis.id, lens.yAxis.id, lens.box) : layout.get(item.id) ?? { x: size.w / 2, y: size.h / 2 },
+    );
   }
-
+  const flips = new Map<string, boolean>();
+  for (const [id, v] of truePos) flips.set(id, shouldFlip(v.x, size.w, Boolean(lens)));
+  const relaxed = relaxLabels(
+    shown.map((i) => {
+      const v = truePos.get(i.id) as Vec;
+      return { id: i.id, x: v.x, y: v.y, flip: flips.get(i.id) ?? false, fixed: !lens && Boolean(i.idea?.board) };
+    }),
+    {
+      labelW: lens ? (mobile ? 112 : 140) : mobile ? 150 : 190,
+      labelH: lens ? (mobile ? 24 : 40) : 42,
+      iterations: 140,
+      bounds: lens
+        ? { left: lens.box.left + 6, top: lens.box.top + 6, right: lens.box.left + lens.box.width - 6, bottom: lens.box.top + lens.box.height - 24 }
+        : bounds,
+    },
+  );
   const centers: Record<string, Vec> = {};
-  for (const item of items) centers[item.id] = positionOf(item);
+  for (const item of shown) centers[item.id] = relaxed.get(item.id) ?? (truePos.get(item.id) as Vec);
   const from = { x: size.w / 2 - 80, y: size.h - 40 };
   const neighbours = new Set<string>();
   const focus = hoverId ?? selectedId;
@@ -143,7 +160,8 @@ export function ThoughtMap({
         pendingLink={null}
         onRemoveLink={onRemoveLink}
       />
-      {items.map((item) => {
+      {lens ? <LeaderLines truePos={truePos} centers={centers} width={size.w} height={size.h} /> : null}
+      {shown.map((item) => {
         const pos = centers[item.id];
         const lit = highlight.has(item.id) || neighbours.has(item.id);
         const dim =
@@ -161,7 +179,7 @@ export function ThoughtMap({
             from={item.isFresh ? from : undefined}
             media={item.media}
             compact={Boolean(lens)}
-            flip={shouldFlip(pos.x, size.w, Boolean(lens))}
+            flip={flips.get(item.id) ?? false}
             isPending={item.isPending}
             isSelected={selectedId === item.id}
             isLit={lit && selectedId !== item.id}
@@ -184,4 +202,24 @@ function quadMatches(idea: Idea, lens: NonNullable<Lens>): boolean {
   const x = idea.axisScores[lens.xAxis.id] ?? 0;
   const y = idea.axisScores[lens.yAxis.id] ?? 0;
   return `${y >= 0 ? "t" : "b"}${x >= 0 ? "r" : "l"}` === lens.quad;
+}
+
+/** Thin leaders from each point's true lens position to where its label could fit. */
+function LeaderLines({ truePos, centers, width, height }: { truePos: Map<string, Vec>; centers: Record<string, Vec>; width: number; height: number }) {
+  const lines: { id: string; a: Vec; b: Vec }[] = [];
+  for (const [id, a] of truePos) {
+    const b = centers[id];
+    if (b && Math.hypot(a.x - b.x, a.y - b.y) > 7) lines.push({ id, a, b });
+  }
+  if (!lines.length) return null;
+  return (
+    <svg aria-hidden className="pointer-events-none absolute top-0 left-0 z-[3]" width={width} height={height}>
+      {lines.map(({ id, a, b }) => (
+        <g key={id}>
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="var(--ink-faint)" strokeWidth={0.8} strokeDasharray="2 2" />
+          <circle cx={a.x} cy={a.y} r={2} fill="var(--ink-faint)" />
+        </g>
+      ))}
+    </svg>
+  );
 }

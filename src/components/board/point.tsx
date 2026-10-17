@@ -92,7 +92,7 @@ export function Point(p: PointProps) {
         className={cn(
           "mt-[-3px] max-w-[11.5rem] rounded px-1 text-[13px] leading-snug text-ink transition-colors max-sm:max-w-[9.5rem] max-sm:text-[12.5px]",
           p.flip && "absolute top-0 right-[14px] w-max text-right",
-          p.compact ? "line-clamp-2 max-w-[8.5rem] text-[11.5px]" : "line-clamp-3",
+          p.compact ? "line-clamp-2 max-w-[8.5rem] text-[11.5px] max-sm:line-clamp-1 max-sm:max-w-[6.5rem] max-sm:text-[11px]" : "line-clamp-3",
           "group-hover:bg-paper/90 group-focus-visible:bg-paper/90",
           p.isSelected && "bg-paper/95 font-medium",
           p.isAssumption && "italic text-ink-soft",

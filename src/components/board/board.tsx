@@ -104,7 +104,7 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
   const note: QuestionNoteData | null = localNote ?? (current ? toNote(current, textOf) : null);
   const { edges, clusters, islands } = connectionsOf(state);
   const lensReady = lens && xAxis && yAxis ? { xAxis, yAxis } : null;
-  const box = plotBox(size.w, size.h, note && size.w >= 1024 ? 390 : 0);
+  const box = plotBox(size.w, size.h, note && size.w >= 1024 ? 390 : 0, note && size.w < 640 ? 160 : 0);
 
   const hiddenSet = new Set(live.hidden);
   const claimed = new Set(Object.values(live.keyMap));
@@ -418,7 +418,7 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
               </div>
             ) : null}
             {lensReady && state ? (
-              <div className="pointer-events-auto flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-rule bg-paper-raised/95 px-3 py-1.5 text-xs shadow-sm backdrop-blur max-sm:max-w-[11rem] max-sm:flex-col max-sm:items-start">
+              <div className="pointer-events-auto flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-rule bg-paper-raised/95 px-3 py-1.5 text-xs shadow-sm backdrop-blur max-sm:hidden">
                 <AxisPick label="Across" value={lensReady.xAxis.id} axes={axes} onChange={setXId} />
                 <AxisPick label="Up" value={lensReady.yAxis.id} axes={axes} onChange={setYId} />
               </div>
@@ -471,7 +471,7 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
         </>
       ) : null}
 
-      <div className="pointer-events-none absolute top-[7.5rem] right-4 z-30 max-sm:top-auto max-sm:bottom-24 sm:right-8">
+      <div className="pointer-events-none absolute top-[7.5rem] right-4 z-30 max-sm:top-auto max-sm:right-3 max-sm:bottom-[5.25rem] sm:right-8">
         <QuestionNote
           note={note}
           whyOpen={whyOpen || Boolean(localNote)}
