@@ -21,6 +21,17 @@ declare global {
   }
 }
 
+const COACH_KEY = "bs-board-tour-done";
+
+function restoreCoachFlag(prev: string | null | undefined): void {
+  try {
+    if (prev === null || prev === undefined) window.localStorage.removeItem(COACH_KEY);
+    else window.localStorage.setItem(COACH_KEY, prev);
+  } catch {
+    // storage unavailable; nothing to restore
+  }
+}
+
 function sessionIdFromUrl(): string | null {
   const m = window.location.pathname.match(/\/s\/([^/?#]+)/);
   return m ? decodeURIComponent(m[1]) : null;
@@ -53,27 +64,19 @@ export function LiveTour() {
   const [ledger, setLedger] = useState<Ledger>(null);
   const [showEnd, setShowEnd] = useState(false);
 
-  // Keep the board's first-run coachmarks out of the live run, then restore the visitor's flag
-  // (the coach reads it ~600ms after mount) so their own first board still gets the hints.
+  // Keep the board's first-run coachmarks out of the live run (they mount once the prompt is
+  // in), then restore the visitor's flag when the run ends or the page goes away.
   useEffect(() => {
-    const KEY = "bs-board-tour-done";
     try {
       // A ref survives React's dev double-effect, so we never "restore" our own write.
-      if (originalFlag.current === undefined) originalFlag.current = window.localStorage.getItem(KEY);
-      window.localStorage.setItem(KEY, "true");
+      if (originalFlag.current === undefined) originalFlag.current = window.localStorage.getItem(COACH_KEY);
+      window.localStorage.setItem(COACH_KEY, "true");
     } catch {
       return;
     }
-    const id = window.setTimeout(() => {
-      try {
-        const prev = originalFlag.current;
-        if (prev === null || prev === undefined) window.localStorage.removeItem(KEY);
-        else window.localStorage.setItem(KEY, prev);
-      } catch {
-        // storage unavailable; nothing to restore
-      }
-    }, 2000);
-    return () => window.clearTimeout(id);
+    const restore = () => restoreCoachFlag(originalFlag.current);
+    window.addEventListener("pagehide", restore);
+    return () => window.removeEventListener("pagehide", restore);
   }, []);
 
   useEffect(() => {
@@ -101,6 +104,7 @@ export function LiveTour() {
       }
       setCaption("That's the whole loop, live.");
       setLedger(await readLedger());
+      restoreCoachFlag(originalFlag.current);
       setFinished(true);
       setShowEnd(true);
       window.__liveTour = { done: true, timings, totalMs: Math.round(performance.now() - started) };

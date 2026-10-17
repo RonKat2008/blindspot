@@ -20,8 +20,13 @@ function syncUrl(index: number, isVideo: boolean): void {
   try {
     const params = new URLSearchParams(window.location.search);
     params.set("chapter", String(index + 1));
-    if (isVideo) params.set("autoplay", "1");
-    else params.delete("autoplay");
+    if (isVideo) {
+      params.set("autoplay", "1");
+      params.set("mode", "guided");
+    } else {
+      params.delete("autoplay");
+      params.delete("mode");
+    }
     window.history.replaceState(window.history.state, "", `${window.location.pathname}?${params.toString()}`);
   } catch {
     // URL sync is a convenience; never block the tour on it.
