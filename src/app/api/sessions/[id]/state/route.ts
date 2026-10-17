@@ -1,13 +1,6 @@
-// OWNER: codex-codex. GET /api/sessions/[id]/state (see src/lib/contract.ts route table)
+import { db, failure, getState } from "@/lib/db";
 export const dynamic = "force-dynamic";
-const notImplemented = (): Response => Response.json({ error: "not implemented" }, { status: 501 });
-
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-): Promise<Response> {
-  void request;
-  const { id } = await params;
-  void id;
-  return notImplemented();
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
+  try { return Response.json(await getState(db(), (await params).id), { headers: { "Cache-Control": "no-store" } }); }
+  catch (error) { return failure(error); }
 }
