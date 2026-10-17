@@ -125,7 +125,7 @@ export function Sticky({
         </span>
       ) : null}
       {media?.type === "image" ? (
-        <div className="-mx-1.5 -mt-1.5 mb-1.5 h-[62%] overflow-hidden rounded-[2px] bg-paper-sunk">
+        <div className="-mx-1.5 -mt-1.5 mb-1.5 h-[64px] shrink-0 overflow-hidden rounded-[2px] bg-paper-sunk">
           {media.url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={media.url} alt={media.caption ?? text} draggable={false} className="h-full w-full object-cover" />
@@ -133,7 +133,7 @@ export function Sticky({
         </div>
       ) : null}
       {media?.type === "audio" ? <AudioStrip url={media.url} /> : null}
-      <p className={cn("overflow-hidden break-words", assumption && "sr-only", media && "line-clamp-2 text-[0.8rem]", compact ? "line-clamp-3 text-[1.05rem]" : "line-clamp-4")}>{text}</p>
+      <p className={cn("overflow-hidden break-words", assumption && "sr-only", media && "line-clamp-2 text-[0.78rem] leading-tight", compact ? "line-clamp-3 text-[1.05rem]" : "line-clamp-4")}>{text}</p>
       <div className="mt-auto flex items-center justify-between pt-1 text-[10px] tracking-wide text-ink-soft uppercase">
         <span className="flex min-w-0 items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap">
           {authorColor ? <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: authorColor }} /> : null}

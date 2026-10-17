@@ -912,7 +912,7 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
           {snapshot?.draft ? (
             <div
               aria-live="polite"
-              className="fixed bottom-24 left-1/2 z-40 w-[min(17rem,calc(100vw-2rem))] -translate-x-1/2 -rotate-1 rounded-[3px] p-3 text-[0.95rem] leading-snug text-ink shadow-[0_18px_30px_-12px_oklch(30%_0.04_60/0.45)] ring-2 ring-ink/80"
+              className="fixed right-4 bottom-24 z-40 w-[min(17rem,calc(100vw-2rem))] -rotate-1 sm:right-8 rounded-[3px] p-3 text-[0.95rem] leading-snug text-ink shadow-[0_18px_30px_-12px_oklch(30%_0.04_60/0.45)] ring-2 ring-ink/80"
               style={{ background: stickyColor() }}
             >
               {snapshot.draft}

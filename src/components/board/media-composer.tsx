@@ -44,7 +44,7 @@ export function MediaComposer({
         const caption = await describeMedia(url, mediaType);
         if (!live) return;
         setUploaded({ url, caption });
-        if (!touched.current) setLabel(caption);
+        if (!touched.current) setLabel(shortLabel(caption));
         setPhase("ready");
       } catch {
         if (live) setPhase("failed");
@@ -136,6 +136,12 @@ export function MediaComposer({
       </motion.div>
     </motion.div>
   );
+}
+
+/** First sentence of the caption, so the sticky reads like a note, not a paragraph. */
+function shortLabel(caption: string): string {
+  const first = caption.split(/(?<=[.!?])\s|\s-\s|\n/)[0]?.trim() ?? caption;
+  return first.length > 90 ? `${first.slice(0, 88).trimEnd()}…` : first;
 }
 
 /** Minimal MediaRecorder wrapper: start() then stop() → audio/webm blob. */

@@ -80,8 +80,10 @@ export function Inspector({ ideaId, state, onClose, onJump, onHoverRelated, onRe
             <img src={idea.mediaUrl} alt={idea.mediaCaption ?? idea.text} className="mb-3 w-full rounded-lg border border-rule object-cover" />
           ) : null}
           {idea.mediaType === "audio" && idea.mediaUrl ? <audio controls src={idea.mediaUrl} className="mb-3 w-full" /> : null}
-          <p className="font-display text-[1.4rem] leading-snug">{idea.text}</p>
-          {idea.mediaCaption && idea.mediaCaption !== idea.text ? <p className="mt-1 text-sm text-ink-soft italic">{idea.mediaCaption}</p> : null}
+          <p className={`font-display leading-snug ${idea.text.length > 90 ? "text-lg" : "text-[1.4rem]"}`}>{idea.text}</p>
+          {idea.mediaCaption && !idea.mediaCaption.startsWith(idea.text.replace(/…$/, "").slice(0, 40)) ? (
+            <p className="mt-1 line-clamp-4 text-sm text-ink-soft italic">{idea.mediaCaption}</p>
+          ) : null}
           <p className="mt-2 flex items-center gap-1.5 text-xs text-ink-soft">
             {idea.authorColor ? <span className="size-2 rounded-full" style={{ background: idea.authorColor }} /> : null}
             {author} · {Number.isNaN(when.getTime()) ? "" : when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
