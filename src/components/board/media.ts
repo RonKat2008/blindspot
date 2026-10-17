@@ -2,7 +2,8 @@ import type { AddIdeasResponse, Axis, Idea, SessionState } from "@/lib/contract"
 
 export type MediaType = "image" | "audio";
 /** Ideas may carry media once the media backend lands; all fields optional. */
-export type MediaIdea = Idea & { mediaType?: MediaType; mediaUrl?: string; mediaCaption?: string };
+export type PointMediaType = MediaType | "link";
+export type MediaIdea = Omit<Idea, "mediaType"> & { mediaType?: PointMediaType; mediaUrl?: string; mediaCaption?: string };
 
 export type RelatedIdea = { id: string; text: string; similarity: number; why?: string };
 export type LensLeaning = { axisId: string; poleA: string; poleB: string; score: number };
@@ -59,14 +60,14 @@ export async function describeMedia(url: string, mediaType: MediaType): Promise<
 
 export async function addMediaIdea(
   sessionId: string,
-  item: { text: string; mediaType: MediaType; mediaUrl: string; caption: string },
+  item: { text: string; mediaType: PointMediaType; mediaUrl: string; caption: string },
 ): Promise<AddIdeasResponse> {
   const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/ideas`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       texts: [item.text === item.caption ? "" : item.text],
-      source: item.mediaType === "audio" ? "voice" : "photo",
+      source: item.mediaType === "audio" ? "voice" : item.mediaType === "image" ? "photo" : "typed",
       media: [{ mediaType: item.mediaType, mediaUrl: item.mediaUrl, caption: item.caption }],
     }),
   });

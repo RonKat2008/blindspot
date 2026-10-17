@@ -47,6 +47,7 @@ export function QuestionNote({
   onWhy,
   onAccept,
   onDismiss,
+  onLookInto,
 }: {
   note: QuestionNoteData | null;
   whyOpen: boolean;
@@ -54,6 +55,7 @@ export function QuestionNote({
   onWhy: (open: boolean) => void;
   onAccept: () => void;
   onDismiss: () => void;
+  onLookInto?: () => void;
 }) {
   const reduce = useReducedMotion();
   return (
@@ -117,6 +119,16 @@ export function QuestionNote({
             >
               Not now
             </Button>
+            {onLookInto ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onLookInto}
+                className="h-8 px-3 text-white/80 hover:bg-white/10 hover:text-white sm:h-9"
+              >
+                Look into this
+              </Button>
+            ) : null}
           </div>
         </motion.aside>
       ) : null}

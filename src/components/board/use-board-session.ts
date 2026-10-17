@@ -5,9 +5,9 @@ import { toast } from "sonner";
 import { api } from "@/lib/api-client";
 import type { Provocation, SessionState } from "@/lib/contract";
 import { patchIdea } from "./extras";
-import { addMediaIdea, deleteIdea, type MediaType } from "./media";
+import { addMediaIdea, deleteIdea, type PointMediaType } from "./media";
 
-export type PendingMedia = { mediaType: MediaType; mediaUrl: string; caption: string } | null;
+export type PendingMedia = { mediaType: PointMediaType; mediaUrl: string; caption: string } | null;
 export type Pending = { tempId: string; text: string; media?: PendingMedia };
 
 const POLL_MS = 5000;
