@@ -19,7 +19,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     if (!since) return Response.json({ since, ideas: [], provocations: [] } satisfies AwayResponse, { headers });
     const client = db();
     const [ideas, provocations] = await Promise.all([
-      client.from("ideas").select("id, author_id, speaker").eq("session_id", id).gt("created_at", since).order("created_at"),
+      client.from("ideas").select("id, author_id, speaker").eq("session_id", id).is("deleted_at", null).gt("created_at", since).order("created_at"),
       client.from("provocations").select("id, text").eq("session_id", id).gt("created_at", since).order("created_at"),
     ]);
     check(ideas.error);
