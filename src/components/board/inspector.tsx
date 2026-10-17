@@ -27,13 +27,21 @@ export function Inspector({ ideaId, state, onClose, onJump, onHoverRelated, onRe
 
   useEffect(() => {
     let live = true;
-    void fetchRelated(ideaId, state).then((r) => {
-      if (!live) return;
-      setRelated(r);
-      onRelated(r.nearest.map((n) => n.id));
+    const load = () =>
+      fetchRelated(ideaId, state).then((r) => {
+        if (!live) return r;
+        setRelated(r);
+        onRelated(r.nearest.map((n) => n.id));
+        return r;
+      });
+    // "why" clauses are written in the background; one refetch picks up the cached ones.
+    let timer = 0;
+    void load().then((r) => {
+      if (live && r.nearest.some((n) => !n.why)) timer = window.setTimeout(() => void load(), 2200);
     });
     return () => {
       live = false;
+      window.clearTimeout(timer);
     };
     // state changes often (polling); re-fetch only when the selection changes
     // eslint-disable-next-line react-hooks/exhaustive-deps

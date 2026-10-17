@@ -19,9 +19,30 @@ async function json<T>(res: Response): Promise<T> {
   return data;
 }
 
+const MAX_EDGE = 1600;
+
+/** Vercel caps bodies near 4.5MB: images go up as ≤1600px JPEG. Audio is sent as-is. */
+async function downscale(file: Blob): Promise<Blob> {
+  if (!file.type.startsWith("image/") || file.type === "image/gif") return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const ratio = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * ratio);
+    canvas.height = Math.round(bitmap.height * ratio);
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const out = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.8));
+    return out ?? file;
+  } catch {
+    return file;
+  }
+}
+
 export async function uploadMedia(file: Blob, sessionId: string, name: string): Promise<{ url: string; mediaType: MediaType }> {
   const form = new FormData();
-  form.append("file", file, name);
+  const body = await downscale(file);
+  form.append("file", body, body === file ? name : name.replace(/\.[a-z0-9]+$/i, "") + ".jpg");
   form.append("sessionId", sessionId);
   return json(await fetch("/api/media/upload", { method: "POST", body: form }));
 }
@@ -44,7 +65,7 @@ export async function addMediaIdea(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      texts: [item.text],
+      texts: [item.text === item.caption ? "" : item.text],
       source: item.mediaType === "audio" ? "voice" : "photo",
       media: [{ mediaType: item.mediaType, mediaUrl: item.mediaUrl, caption: item.caption }],
     }),
