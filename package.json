@@ -11,7 +11,8 @@
     "verify": "npm run typecheck && npm run lint && next build",
     "db:types": "npx supabase gen types typescript --linked > src/lib/supabase/database.types.ts",
     "preflight": "node scripts/preflight.mjs",
-    "db:types:local": "npx supabase gen types typescript --local > src/lib/supabase/database.types.ts"
+    "db:types:local": "npx supabase gen types typescript --local > src/lib/supabase/database.types.ts",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
@@ -42,6 +43,7 @@
     "eslint-config-next": "16.3.8",
     "shadcn": "^4.21.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@playwright/test": "^1.56.1"
   }
 }
