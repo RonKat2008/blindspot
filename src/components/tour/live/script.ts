@@ -1,4 +1,7 @@
 // The live run: real session, real lenses, real ideas and photos, real question.
+import { quadOf, type QuadKey } from "@/components/board/board-utils";
+import { api } from "@/lib/api-client";
+import type { SessionState } from "@/lib/contract";
 import { $, buttonWithText, Director, pickImage, pressEnter, stickyWithText } from "./director";
 
 export const LIVE_PROMPT = "How might we make a new hire's first week great?";
@@ -12,14 +15,40 @@ export const SAFE_IDEAS = [
   "Pre-filled sample project",
 ] as const;
 
-export const GAP_IMAGE_LABEL = "Pair every new hire with a buddy for week one";
-export const GAP_TEXT_IDEA = "Let new hires run the Friday demo";
+export const GAP_IMAGE_LABEL = "Replace training with a community of past new hires who coach each cohort";
+export const GAP_TEXT_IDEA = "Scrap the manual: new hires ship a real feature with the whole team on day one";
 
 export type LiveStep = {
   id: string;
   caption: string;
   run: (d: Director, say: (caption: string) => void) => Promise<void>;
 };
+
+async function readState(): Promise<SessionState | null> {
+  const m = window.location.pathname.match(/\/s\/([^/?#]+)/);
+  if (!m) return null;
+  try {
+    return await api.getState(decodeURIComponent(m[1]));
+  } catch {
+    return null;
+  }
+}
+
+/** Quadrants of the default Lens view (first two lenses, as the board picks them) with no ideas. */
+function emptyQuads(st: SessionState): Set<QuadKey> {
+  const [x, y] = st.axes;
+  const empty = new Set<QuadKey>(["tl", "tr", "bl", "br"]);
+  if (!x || !y) return new Set();
+  for (const idea of st.ideas) empty.delete(quadOf(idea, x.id, y.id));
+  return empty;
+}
+
+/** True when one of the answer ideas landed in a quadrant that was empty before. */
+function filledEmptyCorner(before: Set<QuadKey>, after: SessionState | null, texts: readonly string[]): boolean {
+  const [x, y] = after?.axes ?? [];
+  if (!after || !x || !y || before.size === 0) return false;
+  return after.ideas.some((i) => texts.includes(i.text) && before.has(quadOf(i, x.id, y.id)));
+}
 
 const MISSED = "Taking longer than usual, so we're moving on.";
 
@@ -148,13 +177,16 @@ export const LIVE_STEPS: readonly LiveStep[] = [
     id: "answer",
     caption: "A human answers the question, with a photo and a note.",
     async run(d, say) {
+      const beforeState = await readState();
+      const before = beforeState ? emptyQuads(beforeState) : new Set<QuadKey>();
       await setView(d, "board");
       await addImage(d, say, "/tour/buddy-pairing.jpeg", "buddy-pairing.jpeg", GAP_IMAGE_LABEL);
       await d.sleep(600);
       await addText(d, say, GAP_TEXT_IDEA);
       await d.sleep(800);
-      say("Back to Lens view: see where the human's answers land, and watch Range move.");
       await setView(d, "lens");
+      const filled = filledEmptyCorner(before, await readState(), [GAP_IMAGE_LABEL, GAP_TEXT_IDEA]);
+      say(filled ? "The human filled the empty corner." : "Back to Lens view: see where the human's answers land, and watch Range move.");
       await d.sleep(5500);
     },
   },
