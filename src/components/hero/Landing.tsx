@@ -17,6 +17,12 @@ const STEPS = [
   { n: "03", title: "Answer the question", body: "It asks one question about the empty corner. You fill the gap. It never does.", Art: ArtAnswer },
 ] as const;
 
+const DECISIONS = [
+  "The AI never writes an idea — we built a checker to enforce it.",
+  "We caught an AI-proposed scoring flaw that would have hidden every real gap.",
+  "We chose questions over answers.",
+] as const;
+
 function Mark() {
   return (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className={styles.mark}>
@@ -107,6 +113,25 @@ export function Landing() {
           </Reveal>
         </section>
 
+        <section className={styles.why} aria-labelledby="why-heading">
+          <Reveal className={styles.whyStory}>
+            <h2 id="why-heading" className={styles.label}>Why we built this</h2>
+            {/* FOUNDER_STORY */}
+            <p className={styles.story}>[Your story: when you noticed AI narrowing your team&rsquo;s ideas]</p>
+          </Reveal>
+          <Reveal className={styles.decided} delay={0.08}>
+            <p className={styles.decidedTitle}>Built with AI, decided by humans</p>
+            <ul className={styles.decidedList}>
+              {DECISIONS.map((d) => (
+                <li key={d}>{d}</li>
+              ))}
+            </ul>
+            <Link href="/why" className={styles.inlineLink}>
+              How we made the calls <span aria-hidden="true">→</span>
+            </Link>
+          </Reveal>
+        </section>
+
         <section className={styles.teams} aria-labelledby="teams-heading">
           <Reveal>
             <h2 id="teams-heading" className={styles.label}>Built for real teams</h2>
@@ -135,6 +160,7 @@ export function Landing() {
           <span className={styles.footerNote}>AI wrote 0 ideas on this page.</span>
         </div>
         <nav aria-label="Footer" className={styles.footerLinks}>
+          <Link href="/why">Why we built it</Link>
           <Link href="/insights">Insights</Link>
           <Link href="/pitch">Pitch</Link>
           <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">GitHub</a>

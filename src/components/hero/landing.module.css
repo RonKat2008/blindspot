@@ -512,6 +512,78 @@
   color: var(--ink-faint);
 }
 
+/* ---------- why ---------- */
+
+.why {
+  display: grid;
+  gap: 32px;
+  align-items: start;
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: var(--space-section) var(--gutter);
+  border-top: 1px solid var(--rule);
+}
+
+@media (min-width: 900px) {
+  .why {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 56px;
+  }
+}
+
+.story {
+  margin: 0;
+  max-width: 34ch;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2.25rem);
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  text-wrap: pretty;
+}
+
+.decided {
+  padding: 26px 26px 22px;
+  border-radius: 20px;
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule);
+}
+
+.decidedTitle {
+  margin: 0 0 14px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.decidedList {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+}
+
+.decidedList li {
+  position: relative;
+  padding-left: 20px;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.decidedList li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--signal);
+}
+
 /* ---------- teams (bento) ---------- */
 
 .bento {
@@ -680,6 +752,7 @@
 }
 
 .footerLinks {
+  flex-wrap: wrap;
   display: flex;
   gap: 4px;
 }
