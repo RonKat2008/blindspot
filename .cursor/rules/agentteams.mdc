@@ -1,0 +1,11 @@
+---
+description: agentteams multi-agent coordination
+alwaysApply: true
+---
+<!-- agentteams:managed -->
+
+<!-- agentteams:start -->
+## agentteams
+
+This repository is coordinated with agentteams (team "dthacks"). Follow the agentteams section of AGENTS.md.
+<!-- agentteams:end -->

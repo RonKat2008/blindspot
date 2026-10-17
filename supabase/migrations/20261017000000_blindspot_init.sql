@@ -1,0 +1,3 @@
+-- Applied to project janvsokxxofdsaxgpwbt via Supabase MCP (blindspot_init + blindspot_demo_policies).
+-- Tables: sessions, axes, ideas, provocations, devices. pgvector(1536) on axes poles and ideas.
+-- See migration history in the Supabase dashboard for the exact SQL.
