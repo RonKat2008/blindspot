@@ -1,6 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -14,19 +14,33 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  axes: ["opsz"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Blind Spot",
-  description: "AI that widens your thinking without giving you a single idea.",
+  description:
+    "A whiteboard that maps your ideas and asks one question at a time about what's missing. It never gives you an idea.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#f8f4ec",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}
-        <Toaster />
+      <body className="flex min-h-full flex-col">
+        {children}
+        <Toaster position="top-center" />
       </body>
     </html>
   );

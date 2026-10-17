@@ -1,13 +1,6 @@
-import { SessionScreen } from "@/components/session-screen";
+import { Board } from "@/components/board/board";
 
-export default async function SessionPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ review?: string }>;
-}) {
+export default async function SessionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const query = await searchParams;
-  return <SessionScreen id={id} review={query.review === "1"} />;
+  return <Board key={id} sessionId={id} />;
 }
