@@ -52,7 +52,7 @@ export async function listBoards(user: CurrentUser): Promise<BoardSummary[]> {
 
   const [sessions, ideas] = await Promise.all([
     client.from("sessions").select("id, prompt, team_name, owner_id, created_at, updated_at").in("id", ids),
-    client.from("ideas").select("session_id, author_id, speaker, board_x, board_y, color, created_at").in("session_id", ids).order("created_at").limit(MAX_IDEAS),
+    client.from("ideas").select("session_id, author_id, speaker, board_x, board_y, color, created_at").in("session_id", ids).is("deleted_at", null).order("created_at").limit(MAX_IDEAS),
   ]);
   check(sessions.error);
   check(ideas.error);

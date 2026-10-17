@@ -7,7 +7,10 @@ import type { SessionState } from "@/lib/contract";
 import { reducedTransition, spring } from "@/lib/motion";
 
 /** PATCH /api/ideas/[id] — shortlist or kind changes. Throws on failure. */
-export async function patchIdea(id: string, body: { shortlisted?: boolean; kind?: "idea" | "assumption" }): Promise<void> {
+export async function patchIdea(
+  id: string,
+  body: { shortlisted?: boolean; kind?: "idea" | "assumption"; board?: { x: number; y: number } },
+): Promise<void> {
   const res = await fetch(`/api/ideas/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },

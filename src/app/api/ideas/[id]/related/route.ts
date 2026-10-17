@@ -60,7 +60,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const startedAt = Date.now();
   try {
     const id = validId((await params).id), client = db();
-    const row = await client.from("ideas").select("session_id").eq("id", id).maybeSingle();
+    const row = await client.from("ideas").select("session_id").eq("id", id).is("deleted_at", null).maybeSingle();
     check(row.error);
     if (!row.data) throw new HttpError(404, "Idea not found");
     const data = await loadSession(client, String(row.data.session_id));

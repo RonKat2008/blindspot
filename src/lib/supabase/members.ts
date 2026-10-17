@@ -60,7 +60,7 @@ type AuthorRow = { id: string; author_id: string | null; speaker: string | null;
 export async function boardPeople(client: Database, sessionId: string, viewer: CurrentUser | null) {
   const [session, ideas] = await Promise.all([
     client.from("sessions").select("owner_id").eq("id", sessionId).maybeSingle(),
-    client.from("ideas").select("id, author_id, speaker, created_at").eq("session_id", sessionId).order("created_at"),
+    client.from("ideas").select("id, author_id, speaker, created_at").eq("session_id", sessionId).is("deleted_at", null).order("created_at"),
   ]);
   check(session.error);
   check(ideas.error);

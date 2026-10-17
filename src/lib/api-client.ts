@@ -140,4 +140,8 @@ export const api = {
   related(ideaId: string): Promise<RelatedResponse> {
     return request("GET", `/api/ideas/${enc(ideaId)}/related`);
   },
+
+  deleteIdea(ideaId: string): Promise<OkResponse> {
+    return request("DELETE", `/api/ideas/${enc(ideaId)}`);
+  },
 };

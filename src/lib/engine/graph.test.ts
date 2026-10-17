@@ -11,14 +11,14 @@ test("empty and unrelated ideas are islands, with no singleton clusters", () => 
   assert.deepEqual(result.edges, []);
 });
 test("deduplicates neighbors and groups transitive strong connections", () => {
-  const result = graph([idea("a", [1, 0, 0]), idea("b", [0.8, 0.6, 0]), idea("c", [0.28, 0.96, 0]), idea("island", [0, 0, 1])]);
+  const result = graph([idea("a", [1, 0, 0]), idea("b", [0.8, 0.6, 0]), idea("c", [0, 1, 0]), idea("island", [0, 0, 1])]);
   assert.equal(result.edges.length, 2);
   assert.deepEqual(result.clusters, [{ id: "a", ideaIds: ["a", "b", "c"] }]);
   assert.deepEqual(result.islands, ["island"]);
   assert.ok(result.edges.every(e => e.a !== e.b && e.similarity >= EDGE_MIN));
 });
 test("weak edges connect ideas without clustering them", () => {
-  const result = graph([idea("a", [1, 0]), idea("b", [0.5, Math.sqrt(0.75)])]);
+  const result = graph([idea("a", [1, 0]), idea("b", [0.32, Math.sqrt(1 - 0.32 ** 2)])]);
   assert.equal(result.edges.length, 1);
   assert.deepEqual(result.clusters, []);
   assert.deepEqual(result.islands, []);

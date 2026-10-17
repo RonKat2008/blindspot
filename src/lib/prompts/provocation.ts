@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Axis, DetectionSignal, Idea, PatternType, ProvocationWhy } from "../contract";
 import { GENERATION_MODEL, generateObject } from "./llm";
 import { judgeIsSafe, passesRegex, wordCount } from "./guard";
+import { quoteFragment } from "../engine/templates-extra";
 import { templateProvocation } from "./templates";
 
 export const MAX_QUESTION_WORDS = 22;
@@ -36,7 +37,7 @@ Pattern guide:
 - shortlist: all shortlisted ideas occupy the supplied pole of a lens. Name that pole and ask whether this concentration is intentional; do not claim all board ideas are shortlisted.
 - assumption (invite): no assumption card exists. Quote a short fragment from the recent cluster and ask the team to put its shared assumption into words as a card. Do not supply the assumption yourself.
 - assumption (flip): a written assumption card exists. Quote a short verbatim fragment of THAT card and ask what changes if it is false. Do not state a replacement assumption or an answer.
-- bridge: people explicitly linked two ideas. Quote a short verbatim fragment of EACH linked idea and ask what connects them. Do not invent or explain the connection.
+- bridge: people explicitly linked two ideas. Quote each supplied fragment verbatim, including a trailing ellipsis when one is present. Do not shorten it further or split a word. Ask what connects them. Do not invent or explain the connection.
 - unexplored: nobody placed anything on an axis. Name the poles; ask which one the problem really belongs to and what made them avoid choosing.
 
 Use these compact question structures, replacing brackets ONLY with supplied words (do not output brackets):
@@ -50,7 +51,7 @@ Use these compact question structures, replacing brackets ONLY with supplied wor
 - assumption invite: What shared assumption behind "[fragment]" would you write on a card?
 - assumption flip: What changes if your assumption "[fragment]" is false?
 - bridge: What connects "[fragment A]" and "[fragment B]" in your thinking?
-Use 2-4 words per fragment. Aim for 14-18 words; 22 is the absolute maximum.
+Use 2-4 words per fragment, except bridge: paste the two supplied fragments exactly. Aim for 14-18 words; 22 is the absolute maximum.
 
 The explanation is one short factual sentence, 8-16 words, about the observed pattern (counts, which idea, which axis). It must also contain no suggestion.`;
 
@@ -89,8 +90,10 @@ function describe(signal: DetectionSignal, ideas: Idea[], axes: Axis[]): string 
       ? `Mode: flip. Written assumption card: ${JSON.stringify(card.text)}. Ask what changes if it is false.`
       : "Mode: invite. The referenced recent cluster has no written assumption card; ask the team to write its shared assumption.");
   }
-  if (signal.type === "bridge") lines.push("People explicitly linked these two referenced ideas; ask them what connects them, without supplying a connection.");
-  if (refs.length > 0) {
+  if (signal.type === "bridge") {
+    lines.push("People explicitly linked these two referenced ideas. Quote each fragment below verbatim and ask what connects them, without supplying a connection.");
+    refs.slice(0, 2).forEach((r) => lines.push(`- Bridge fragment (quote verbatim): "${quoteFragment(r.text)}"`));
+  } else if (refs.length > 0) {
     lines.push(`Ideas the pattern refers to (the team's own words):`);
     refs.slice(0, 6).forEach((r) => lines.push(`- "${r.text}"`));
   }

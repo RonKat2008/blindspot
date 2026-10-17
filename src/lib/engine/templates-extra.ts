@@ -1,7 +1,18 @@
 import type { DetectionSignal, Idea, ProvocationWhy } from "../contract";
 
-/** Quote at most three of the user's words, keeping every question under 22 words. */
-const quote = (text: string) => `“${text.trim().split(/\s+/u).slice(0, 3).join(" ")}”`;
+const QUOTE_MAX = 60;
+
+/** Full text at or under 60 characters; longer text stops on a word boundary. */
+export function quoteFragment(text: string, max = QUOTE_MAX): string {
+  const clean = text.trim().replace(/\s+/gu, " ");
+  if (clean.length <= max) return clean;
+  const window = clean.slice(0, max + 1);
+  const space = window.lastIndexOf(" ");
+  const cut = (space > 0 ? window.slice(0, space) : clean.slice(0, max)).trimEnd();
+  return `${cut}…`;
+}
+
+const quote = (text: string) => `“${quoteFragment(text)}”`;
 
 /** Null means the caller should use the existing prompt pipeline. No model calls. */
 export function templateExtra(

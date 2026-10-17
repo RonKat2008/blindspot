@@ -171,8 +171,8 @@ export function RangeMeter({ value }: { value: number }) {
 const TOUR_KEY = "bs-board-tour-done";
 const TOUR = [
   { title: "Type your question", body: "Start with what you're brainstorming, up top. Press Enter when it reads right." },
-  { title: "Click anywhere to add an idea", body: "Each click drops a sticky. Or just start typing. Quantity beats polish." },
-  { title: "Flip to Lens view", body: "Press L to see your notes on two lenses. Hatched corners are your blind spots." },
+  { title: "Add thoughts below", body: "Each one becomes a point. Related points pull together and connect on their own." },
+  { title: "Flip to Lens view", body: "Press L to see your points on two lenses. Hatched corners are your blind spots." },
 ];
 
 export function BoardCoach({ step, onStep }: { step: number; onStep: (next: number) => void }) {

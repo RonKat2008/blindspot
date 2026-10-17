@@ -65,7 +65,7 @@ export async function loadSession(client: Database, id: string) {
   const results = await Promise.all([
     client.from("sessions").select("*").eq("id", id).maybeSingle(),
     client.from("axes").select("*").eq("session_id", id).order("position"),
-    client.from("ideas").select("*").eq("session_id", id).order("created_at").order("id"),
+    client.from("ideas").select("*").eq("session_id", id).is("deleted_at", null).order("created_at").order("id"),
     client.from("provocations").select("*").eq("session_id", id).order("created_at").order("id"),
   ]);
   results.forEach(r => check(r.error));
