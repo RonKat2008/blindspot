@@ -2,6 +2,7 @@
 
 import type { Axis, Idea, Provocation, SessionState } from "./contract";
 import demoData from "./demo-data.json";
+import { graph } from "./engine/graph";
 
 const DEFAULT_CANNED_REPLY =
   "This is a canned DEMO_MODE reply. Replace it in src/lib/demo.ts with a realistic answer from your demo script.";
@@ -192,5 +193,7 @@ export function getDemoSessionState(): SessionState {
     provocations: getDemoProvocations(),
     diversity: Math.round((0.6 * spread + 0.4 * coverage) * 100),
     diversityBreakdown: { spread, coverage },
+    // Same connection graph the live API computes, so the demo map shows threads and clusters.
+    ...graph(demoData.ideas.map((idea, j) => ({ id: ideaId(j), embedding: idea.embedding }))),
   };
 }

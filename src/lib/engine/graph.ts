@@ -1,7 +1,8 @@
 import { cosine } from "./score.ts";
 
-export const EDGE_MIN = 0.45;
-export const CLUSTER_MIN = 0.55;
+// Short brainstorm phrases rarely exceed ~0.4 cosine with text-embedding-3-small; each idea still keeps only its top-2 links.
+export const EDGE_MIN = 0.28;
+export const CLUSTER_MIN = 0.36;
 type GraphIdea = { id: string; embedding: number[] };
 
 /** Union of each idea's two strongest neighbors; vectors stay server-side. */
