@@ -68,7 +68,7 @@ test("soft delete hides the idea from session state", async ({ request }) => {
 test("bridge question quotes ideas without a mid-word cut", async ({ request }) => {
   const { sessionId } = await createSession(request);
   const shortText = "Bike share for";
-  const longText = "Neighborhood tool library sharing drills saws and clamps with neighbors every Saturday morning";
+  const longText = "Quarterly sourdough baking contest judged by retired opera singers wearing medieval armor costumes";
   const added = await checkedJson<AddIdeasResponse>(await request.post(`/api/sessions/${sessionId}/ideas`, {
     data: { texts: [shortText, longText], source: "typed" },
     timeout: 60_000,
