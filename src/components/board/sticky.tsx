@@ -7,6 +7,7 @@ import { reducedTransition, spring } from "@/lib/motion";
 import { STICKY_H, STICKY_W } from "./board-utils";
 
 export type StickyTarget = { x: number; y: number; rotate: number; scale: number };
+export type StickyMedia = { type: "image" | "audio"; url?: string; caption?: string };
 
 type StickyProps = {
   id: string;
@@ -21,6 +22,9 @@ type StickyProps = {
   isHighlighted?: boolean;
   isIsland?: boolean;
   isShortlisted?: boolean;
+  isSelected?: boolean;
+  media?: StickyMedia;
+  onOpen?: (id: string) => void;
   /** Rendered instead of the note body (kind "assumption"). */
   assumption?: React.ReactNode;
   canDrag: boolean;
@@ -44,6 +48,9 @@ export function Sticky({
   isHighlighted,
   isIsland,
   isShortlisted,
+  isSelected,
+  media,
+  onOpen,
   assumption,
   canDrag,
   compact,
@@ -69,6 +76,8 @@ export function Sticky({
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal-ink",
         isIsland && "outline-[1.5px] outline-offset-3 outline-dashed outline-ink-faint/70",
         isHighlighted && "outline-2 outline-offset-3 outline-solid outline-signal",
+        isSelected && "outline-2 outline-offset-3 outline-solid outline-ink",
+        onOpen && "cursor-pointer",
         isDimmed && "opacity-30",
       )}
       style={{ width: STICKY_W, height: STICKY_H, background: assumption ? "transparent" : color, zIndex: isHighlighted ? 6 : undefined }}
@@ -94,7 +103,16 @@ export function Sticky({
           dragged.current = false;
         }, 0);
       }}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (!dragged.current && !isPending) onOpen?.(id);
+      }}
+      onKeyDown={(e) => {
+        if ((e.key === "Enter" || e.key === " ") && !isPending) {
+          e.preventDefault();
+          onOpen?.(id);
+        }
+      }}
       onPointerEnter={() => onHover(id)}
       onPointerLeave={() => onHover(null)}
       onFocus={() => onHover(id)}
@@ -106,7 +124,16 @@ export function Sticky({
           ★
         </span>
       ) : null}
-      <p className={cn("overflow-hidden break-words", assumption && "sr-only", compact ? "line-clamp-3 text-[1.05rem]" : "line-clamp-4")}>{text}</p>
+      {media?.type === "image" ? (
+        <div className="-mx-1.5 -mt-1.5 mb-1.5 h-[62%] overflow-hidden rounded-[2px] bg-paper-sunk">
+          {media.url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={media.url} alt={media.caption ?? text} draggable={false} className="h-full w-full object-cover" />
+          ) : null}
+        </div>
+      ) : null}
+      {media?.type === "audio" ? <AudioStrip url={media.url} /> : null}
+      <p className={cn("overflow-hidden break-words", assumption && "sr-only", media && "line-clamp-2 text-[0.8rem]", compact ? "line-clamp-3 text-[1.05rem]" : "line-clamp-4")}>{text}</p>
       <div className="mt-auto flex items-center justify-between pt-1 text-[10px] tracking-wide text-ink-soft uppercase">
         <span className="flex min-w-0 items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap">
           {authorColor ? <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: authorColor }} /> : null}
@@ -195,5 +222,38 @@ export function DraftSticky({ x, y, color, initialText, onCommit, onCancel }: Dr
       />
       <p className="text-right text-[10px] text-ink-soft">Enter ↵ to stick · Esc to cancel</p>
     </motion.div>
+  );
+}
+
+const BARS = [3, 6, 9, 5, 11, 7, 4, 8, 12, 6, 3, 7, 10, 5, 8, 4];
+
+function AudioStrip({ url }: { url?: string }) {
+  const ref = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  return (
+    <div className="mb-1.5 flex items-center gap-2">
+      <button
+        type="button"
+        aria-label={playing ? "Pause voice note" : "Play voice note"}
+        disabled={!url}
+        className="grid size-7 shrink-0 place-items-center rounded-full bg-ink text-[10px] text-paper-raised disabled:opacity-40"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          const el = ref.current;
+          if (!el) return;
+          if (el.paused) void el.play();
+          else el.pause();
+        }}
+      >
+        {playing ? "❚❚" : "▶"}
+      </button>
+      <div aria-hidden className="flex h-4 items-center gap-[2px]">
+        {BARS.map((h, i) => (
+          <span key={i} className={cn("w-[2px] rounded-full bg-ink/50", playing && "animate-pulse")} style={{ height: h + 2 }} />
+        ))}
+      </div>
+      {url ? <audio ref={ref} src={url} preload="none" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} /> : null}
+    </div>
   );
 }

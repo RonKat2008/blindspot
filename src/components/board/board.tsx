@@ -1,14 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, MotionConfig } from "motion/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { RealityButton } from "@/components/reality-button";
 import { api } from "@/lib/api-client";
 import type { Idea, Provocation, SessionState } from "@/lib/contract";
 import type { AuthoredIdea } from "@/lib/supabase/account-types";
-import { spring } from "@/lib/motion";
 import { AccountMenu } from "@/components/account/account-menu";
 import { AwayDigest } from "@/components/account/away-digest";
 import { InviteButton } from "@/components/account/invite-button";
@@ -35,8 +34,14 @@ import { WrapUp } from "./wrap-up";
 import { AssumptionWriter, ConvergeDrawer, patchIdea } from "./extras";
 import { ReplayTimeline } from "@/components/replay/replay-timeline";
 import { AssumptionCard } from "@/components/assumption/assumption-card";
+import { Inspector } from "./inspector";
+import { addMediaIdea, deleteIdea, type MediaIdea, type MediaType } from "./media";
+import { MediaComposer, type MediaDraft, type PlacedMedia, useRecorder } from "./media-composer";
+import { AxisPick, Toolbar } from "./toolbar";
+import { usePanZoom } from "./use-pan-zoom";
 
-type Pending = { tempId: string; text: string };
+type PendingMedia = PlacedMedia["media"];
+type Pending = { tempId: string; text: string; media?: PendingMedia };
 type Draft = { x: number; y: number; text: string };
 
 const POLL_MS = 5000;
@@ -91,7 +96,6 @@ export type BoardSnapshot = {
  * Scripted mode: pass `snapshot` (the /demo tour) — no network, no input, layout is deterministic.
  */
 export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; snapshot?: BoardSnapshot }) {
-  const reduce = useReducedMotion();
   const viewportRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
 
@@ -125,11 +129,19 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
   const [replayFrame, setReplayFrame] = useState<{ ideas: Set<string>; questions: Set<string> } | null>(null);
   const [convergeOn, setConvergeOn] = useState(false);
   const [assumptionOpen, setAssumptionOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [relatedIds, setRelatedIds] = useState<string[]>([]);
+  const [inspectHover, setInspectHover] = useState<string | null>(null);
+  const [mediaDraft, setMediaDraft] = useState<MediaDraft | null>(null);
+  const [hidden, setHidden] = useState<string[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const recorder = useRecorder();
   const scripted = Boolean(snapshot);
   const state = snapshot ? snapshot.state : stateRaw;
   const prompt = snapshot ? snapshot.state.session.prompt : promptRaw;
   const lens = snapshot ? snapshot.view === "lens" : lensRaw;
   const whyOpen = snapshot ? snapshot.whyOpen : whyRaw;
+  const { zoom, setZoom, panning } = usePanZoom(viewportRef, !lens && !scripted);
   const positions = useMemo(
     () => (snapshot ? autoLayout(snapshot.state.ideas, size.w) : posRaw),
     [snapshot, size.w, posRaw],
@@ -210,9 +222,11 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
 
   // ---- ideas
   const postIdea = useCallback(
-    async (sid: string, tempId: string, text: string) => {
+    async (sid: string, tempId: string, text: string, media?: PendingMedia) => {
       try {
-        const res = await api.addIdeas(sid, { texts: [text], source: "typed" });
+        const res = media
+          ? await addMediaIdea(sid, { text, mediaType: media.mediaType, mediaUrl: media.mediaUrl, caption: media.caption })
+          : await api.addIdeas(sid, { texts: [text], source: "typed" });
         lastMutation.current = Date.now();
         const landed = res.ideas[0];
         if (landed) {
@@ -244,18 +258,18 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
   );
 
   const addIdea = useCallback(
-    (text: string, at?: { x: number; y: number }) => {
+    (text: string, at?: { x: number; y: number }, media?: PendingMedia) => {
       const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       freshRef.current.add(tempId);
       setPositions((p) => ({
         ...p,
         [tempId]: at ? { ...at, rot: randomRot() } : nextFreeSpot(Object.values(p), usableWidth(viewportRef.current?.clientWidth ?? 1200)),
       }));
-      setPending((list) => [...list, { tempId, text }]);
+      setPending((list) => [...list, { tempId, text, media }]);
       if (coachStep === 1) setCoachStep(2);
       const sid = sessionRef.current;
-      if (sid) void postIdea(sid, tempId, text);
-      else queuedRef.current.push({ tempId, text });
+      if (sid) void postIdea(sid, tempId, text, media);
+      else queuedRef.current.push({ tempId, text, media });
     },
     [postIdea, coachStep],
   );
@@ -276,7 +290,7 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
       // flush anything typed while lenses were loading
       const queued = queuedRef.current;
       queuedRef.current = [];
-      queued.forEach((p) => void postIdea(sid, p.tempId, p.text));
+      queued.forEach((p) => void postIdea(sid, p.tempId, p.text, p.media));
     } catch (err) {
       toast(err instanceof Error ? err.message : "Couldn't start the board. Try again.");
       setPrompt(null);
@@ -367,6 +381,62 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
     });
   }, []);
 
+  // ---- media points (image / voice)
+  function openMedia(blob: Blob, name: string, mediaType: MediaType, at?: { x: number; y: number }) {
+    if (!prompt || scripted) return;
+    if (!sessionRef.current) {
+      toast("One moment — the board is still being set up.");
+      return;
+    }
+    setMediaDraft({ blob, name, mediaType, at });
+  }
+
+  async function startRecording() {
+    if (!prompt) return;
+    const ok = await recorder.start();
+    if (!ok) toast("Couldn't reach a microphone. Check the browser permission.");
+  }
+
+  async function stopRecording() {
+    const blob = await recorder.stop();
+    if (blob) openMedia(blob, "voice-note.webm", "audio");
+  }
+
+  function placeMedia(placed: PlacedMedia) {
+    const at = mediaDraft?.at;
+    setMediaDraft(null);
+    addIdea(placed.label, at, placed.media);
+  }
+
+  async function markAssumption(id: string) {
+    setState((prev) => (prev ? { ...prev, ideas: prev.ideas.map((i) => (i.id === id ? { ...i, kind: "assumption" } : i)) } : prev));
+    lastMutation.current = Date.now();
+    try {
+      await patchIdea(id, { kind: "assumption" });
+    } catch {
+      toast("Couldn't save that. Try again.");
+    }
+  }
+
+  async function removeIdea(id: string) {
+    setSelectedId(null);
+    setHidden((h) => [...h, id]);
+    try {
+      await deleteIdea(id);
+      lastMutation.current = Date.now();
+    } catch {
+      toast("Hidden on this screen. Deleting for everyone isn't available yet.");
+    }
+  }
+
+  function jumpTo(id: string) {
+    setSelectedId(id);
+    const vp = viewportRef.current;
+    const pos = positions[id];
+    if (!vp || !pos || lens) return;
+    vp.scrollTo({ left: pos.x * zoom - vp.clientWidth / 2 + STICKY_W / 2, top: pos.y * zoom - vp.clientHeight / 2, behavior: "smooth" });
+  }
+
   // ---- drafting
   function openDraftAtFreeSpot(initial: string) {
     if (lens) setLens(false);
@@ -393,9 +463,13 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
     if (draft) return;
     const rect = surfaceRef.current?.getBoundingClientRect();
     if (!rect) return;
+    if (selectedId) {
+      setSelectedId(null);
+      return;
+    }
     setDraft({
-      x: Math.max(8, e.clientX - rect.left - STICKY_W / 2),
-      y: Math.max(8, e.clientY - rect.top - 24),
+      x: Math.max(8, (e.clientX - rect.left) / zoom - STICKY_W / 2),
+      y: Math.max(8, (e.clientY - rect.top) / zoom - 24),
       text: "",
     });
   }
@@ -424,6 +498,21 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
         setShowConn((v) => !v);
         return;
       }
+      if (e.key === "t" || e.key === "T") {
+        e.preventDefault();
+        openDraftAtFreeSpot("");
+        return;
+      }
+      if (e.key === "i" || e.key === "I") {
+        e.preventDefault();
+        fileRef.current?.click();
+        return;
+      }
+      if ((e.key === "r" || e.key === "R") && !e.repeat) {
+        e.preventDefault();
+        void (recorder.recording ? stopRecording() : startRecording());
+        return;
+      }
       if (e.key.length === 1 && /\S/.test(e.key) && !draft && !wrapOpen) {
         e.preventDefault();
         openDraftAtFreeSpot(e.key);
@@ -432,6 +521,28 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+
+  // ---- paste an image anywhere on the board
+  useEffect(() => {
+    if (scripted) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const el = document.activeElement;
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return;
+      const file = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith("image/"));
+      if (!file) return;
+      e.preventDefault();
+      openMedia(file, file.name || "pasted.png", "image");
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  });
+
+  function stickyMedia(item: { idea?: Idea; media?: PendingMedia }) {
+    const m = item.idea as MediaIdea | undefined;
+    if (m?.mediaType) return { type: m.mediaType, url: m.mediaUrl, caption: m.mediaCaption };
+    if (item.media) return { type: item.media.mediaType, url: item.media.mediaUrl, caption: item.media.caption };
+    return undefined;
+  }
 
   // ---- human links: the server may answer with a bridge question (never an idea)
   async function askBridge(sid: string, a: string, b: string) {
@@ -456,8 +567,9 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
   function onLinkStart(from: string, e: React.PointerEvent) {
     const rect = surfaceRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setLinkDrag({ from, x: e.clientX - rect.left, y: e.clientY - rect.top });
-    const move = (ev: PointerEvent) => setLinkDrag({ from, x: ev.clientX - rect.left, y: ev.clientY - rect.top });
+    const z = zoom;
+    setLinkDrag({ from, x: (e.clientX - rect.left) / z, y: (e.clientY - rect.top) / z });
+    const move = (ev: PointerEvent) => setLinkDrag({ from, x: (ev.clientX - rect.left) / z, y: (ev.clientY - rect.top) / z });
     const up = (ev: PointerEvent) => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
@@ -502,17 +614,25 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
   const islandSet = new Set(islands);
 
   const occupied = new Set<QuadKey>(lensReady ? ideas.map((i) => quadOf(i, xAxis.id, yAxis.id)) : []);
-  const highlightIds: string[] = localNote ? localNote.ids : whyOpen && current ? current.why.ideaIds : digestIds;
+  const highlightIds: string[] = selectedId
+    ? [selectedId, ...relatedIds]
+    : localNote
+      ? localNote.ids
+      : whyOpen && current
+        ? current.why.ideaIds
+        : digestIds;
   const highlight = new Set(highlightIds);
 
   const claimed = new Set(Object.values(keyMap));
-  type Item = { key: string; id: string; text: string; speaker?: string; authorColor?: string; isPending: boolean; idea?: Idea };
+  type Item = { key: string; id: string; text: string; speaker?: string; authorColor?: string; isPending: boolean; idea?: Idea; media?: PendingMedia };
   const allItems: Item[] = [
     ...ideas.map((i) => ({ key: keyMap[i.id] ?? i.id, id: i.id, text: i.text, speaker: (i as AuthoredIdea).authorName ?? i.speaker, authorColor: (i as AuthoredIdea).authorColor, isPending: false, idea: i })),
-    ...pending.filter((p) => !claimed.has(p.tempId)).map((p) => ({ key: p.tempId, id: p.tempId, text: p.text, isPending: true })),
+    ...pending.filter((p) => !claimed.has(p.tempId)).map((p) => ({ key: p.tempId, id: p.tempId, text: p.text, isPending: true, media: p.media })),
   ];
 
-  const items = replayFrame ? allItems.filter((i) => i.isPending || replayFrame.ideas.has(i.id)) : allItems;
+  const hiddenSet = new Set(hidden);
+  const visibleItems = allItems.filter((i) => !hiddenSet.has(i.id));
+  const items = replayFrame ? visibleItems.filter((i) => i.isPending || replayFrame.ideas.has(i.id)) : visibleItems;
 
   function targetFor(item: Item) {
     if (lensReady && item.idea) {
@@ -571,25 +691,6 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
               <div className="flex shrink-0 items-center gap-1">
                 {sessionId && !scripted ? <InviteButton sessionId={sessionId} className="max-sm:hidden" /> : null}
                 {!scripted ? <PhoneQrButton sessionId={sessionId} /> : null}
-                {!scripted && ideas.length ? (
-                  <>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      aria-pressed={replayOn}
-                      className={`h-8 px-2.5 max-md:hidden ${replayOn ? "bg-paper-sunk text-ink" : ""}`}
-                      onClick={() => {
-                        setReplayOn((v) => !v);
-                        setReplayFrame(null);
-                      }}
-                    >
-                      Replay
-                    </Button>
-                    <Button type="button" variant="ghost" aria-pressed={convergeOn} className="h-8 px-2.5 max-md:hidden" onClick={() => setConvergeOn(true)}>
-                      Converge
-                    </Button>
-                  </>
-                ) : null}
                 <Button type="button" variant="outline" className="h-8 px-3" disabled={!ideas.length} onClick={() => setWrapOpen(true)}>
                   Wrap up
                 </Button>
@@ -619,18 +720,31 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
       <div
         ref={viewportRef}
         data-tour="board"
-        className={`relative flex-1 ${lens ? "overflow-hidden" : "overflow-auto"}`}
+        className={`relative flex-1 ${lens ? "overflow-hidden" : "overflow-auto"} ${panning ? "cursor-grab" : ""}`}
+        onDragOver={(e) => {
+          if (!scripted && e.dataTransfer.types.includes("Files")) e.preventDefault();
+        }}
+        onDrop={(e) => {
+          const file = Array.from(e.dataTransfer.files).find((f) => f.type.startsWith("image/") || f.type.startsWith("audio/"));
+          if (!file) return;
+          e.preventDefault();
+          const rect = surfaceRef.current?.getBoundingClientRect();
+          const at = rect ? { x: Math.max(8, (e.clientX - rect.left) / zoom - STICKY_W / 2), y: Math.max(8, (e.clientY - rect.top) / zoom - 40) } : undefined;
+          openMedia(file, file.name, file.type.startsWith("audio/") ? "audio" : "image", at);
+        }}
         style={{
           backgroundImage: "radial-gradient(circle, color-mix(in oklch, var(--ink) 14%, transparent) 1px, transparent 1.4px)",
           backgroundSize: "22px 22px",
         }}
       >
+        <div style={{ width: surfaceW * zoom, height: surfaceH * zoom }}>
+        <MotionConfig transformPagePoint={(pt) => ({ x: pt.x / zoom, y: pt.y / zoom })}>
         <div
           ref={surfaceRef}
           role="application"
           aria-label={lens ? "Lens view of your ideas" : "Whiteboard. Click to add a sticky note."}
           className={`relative ${lens ? "" : hasPrompt ? "cursor-crosshair" : ""}`}
-          style={{ width: surfaceW, height: surfaceH }}
+          style={{ width: surfaceW, height: surfaceH, transform: zoom === 1 ? undefined : `scale(${zoom})`, transformOrigin: "0 0" }}
           onClick={onSurfaceClick}
         >
           <AnimatePresence>
@@ -646,7 +760,7 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
             edges={edges}
             clusters={clusters}
             links={links}
-            hoverId={hoverId}
+            hoverId={inspectHover ?? hoverId ?? selectedId}
             show={showConn}
             pendingLink={linkDrag}
             onRemoveLink={(l) => setLinks((list) => list.filter((x) => !(x.a === l.a && x.b === l.b)))}
@@ -668,6 +782,9 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
               isIsland={islandSet.has(item.id)}
               assumption={item.idea?.kind === "assumption" ? <AssumptionCard idea={item.idea} /> : undefined}
               isShortlisted={Boolean(item.idea?.shortlisted)}
+              isSelected={selectedId === item.id || inspectHover === item.id}
+              media={stickyMedia(item)}
+              onOpen={scripted ? undefined : setSelectedId}
               canDrag={!lens && !scripted}
               compact={Boolean(lensReady)}
               onHover={setHoverId}
@@ -716,14 +833,16 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
             </p>
           ) : null}
         </div>
+        </MotionConfig>
+        </div>
       </div>
 
       {/* ---------- floating chrome ---------- */}
       {hasPrompt ? (
-        <div className="pointer-events-none absolute right-4 bottom-4 left-4 z-30 flex items-end justify-between gap-3 sm:right-8 sm:left-8">
-          <div className="pointer-events-auto flex flex-col items-start gap-2">
+        <>
+          <div className="pointer-events-none absolute bottom-20 left-4 z-30 flex flex-col items-start gap-2 sm:bottom-4 sm:left-8">
             {lensReady && quad ? (
-              <div className="relative w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-rule bg-paper-raised p-3 shadow-[var(--shadow-card)]">
+              <div className="pointer-events-auto relative w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-rule bg-paper-raised p-3 shadow-[var(--shadow-card)]">
                 <p className="text-sm">
                   {quadIdeas.length ? `${quadIdeas.length} note${quadIdeas.length === 1 ? "" : "s"} in this corner.` : "Nobody's been here yet."}
                 </p>
@@ -731,73 +850,91 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
               </div>
             ) : null}
             {lensReady && state ? (
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-rule bg-paper-raised/95 px-3 py-1.5 text-xs shadow-sm backdrop-blur max-sm:max-w-[11rem] max-sm:flex-col max-sm:items-start">
+              <div className="pointer-events-auto flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-rule bg-paper-raised/95 px-3 py-1.5 text-xs shadow-sm backdrop-blur max-sm:max-w-[11rem] max-sm:flex-col max-sm:items-start">
                 <AxisPick label="Across" value={xAxis.id} axes={state.axes} onChange={setXId} />
                 <AxisPick label="Up" value={yAxis.id} axes={state.axes} onChange={setYId} />
               </div>
             ) : null}
             {state ? (
-              <div data-tour="range-meter">
+              <div data-tour="range-meter" className="pointer-events-auto">
                 <RangeMeter value={state.diversity} />
               </div>
             ) : null}
           </div>
-          <div className="pointer-events-auto relative flex flex-col items-end gap-2">
-            {scripted ? null : <BoardCoach step={coachStep} onStep={setCoachStep} />}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                aria-pressed={showConn}
-                title="Show connections (C)"
-                onClick={() => setShowConn((v) => !v)}
-                className="hidden h-10 items-center gap-1.5 rounded-full border border-rule bg-paper-raised/95 px-3 text-xs text-ink-soft shadow-sm transition hover:text-ink sm:flex"
-              >
-                <svg width="18" height="10" aria-hidden>
-                  <path d="M2 8 Q9 0 16 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray={showConn ? "0" : "2 2"} />
-                </svg>
-                Threads
-              </button>
-              <div data-tour="lens-toggle" role="group" aria-label="View" className="flex rounded-full border border-rule bg-paper-raised/95 p-1 shadow-sm backdrop-blur">
-                <ViewTab active={!lens} onClick={() => setLens(false)}>Board</ViewTab>
-                <ViewTab
-                  active={lens}
-                  onClick={() => {
-                    setLens(true);
-                    if (coachStep === 2) setCoachStep(3);
-                  }}
-                >
-                  <span className="sm:hidden">Lens</span>
-                  <span className="max-sm:hidden">Lens view</span> <kbd className="ml-1 hidden rounded border border-current/30 px-1 text-[10px] opacity-60 sm:inline">L</kbd>
-                </ViewTab>
+
+          <div className="pointer-events-none absolute right-4 bottom-20 z-30 flex flex-col items-end gap-2 sm:right-8 sm:bottom-4">
+            {scripted ? null : (
+              <div className="pointer-events-auto">
+                <BoardCoach step={coachStep} onStep={setCoachStep} />
               </div>
-              {snapshot?.draft ? (
-                <div
-                  aria-live="polite"
-                  className="fixed bottom-24 left-1/2 z-40 w-[min(17rem,calc(100vw-2rem))] -translate-x-1/2 -rotate-1 rounded-[3px] p-3 text-[0.95rem] leading-snug text-ink shadow-[0_18px_30px_-12px_oklch(30%_0.04_60/0.45)] ring-2 ring-ink/80"
-                  style={{ background: stickyColor() }}
-                >
-                  {snapshot.draft}
-                  <span className="ml-0.5 inline-block h-4 w-px translate-y-0.5 animate-pulse bg-ink" />
-                </div>
-              ) : null}
-              <motion.button
-                  data-tour="add-sticky"
-                  type="button"
-                  whileTap={reduce ? undefined : { scale: 0.95 }}
-                  transition={spring.snappy}
-                  onClick={() => openDraftAtFreeSpot("")}
-                  className="flex h-12 items-center gap-2 rounded-full bg-ink px-4 text-sm font-medium text-paper-raised shadow-[0_10px_24px_-10px_oklch(22%_0.02_60/0.6)] transition hover:-translate-y-px"
-                >
-                  <span className="text-lg leading-none">+</span>
-                  <span className="max-sm:sr-only">Add a sticky</span>
-                </motion.button>
+            )}
+            {!lens && !scripted ? (
+              <div className="pointer-events-auto flex items-center rounded-full border border-rule bg-paper-raised/90 text-xs text-ink-soft shadow-sm backdrop-blur max-sm:hidden">
+                <button type="button" aria-label="Zoom out" className="px-2.5 py-1.5 hover:text-ink" onClick={() => setZoom(zoom - 0.1)}>
+                  −
+                </button>
+                <button type="button" title="Reset zoom" className="tnum w-12 py-1.5 text-center hover:text-ink" onClick={() => setZoom(1)}>
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button type="button" aria-label="Zoom in" className="px-2.5 py-1.5 hover:text-ink" onClick={() => setZoom(zoom + 0.1)}>
+                  +
+                </button>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex justify-center px-3 sm:bottom-4">
+            <div className="pointer-events-auto">
+              <Toolbar
+                lens={lens}
+                showConn={showConn}
+                recording={recorder.recording}
+                canConverge={ideas.length > 0}
+                replayOn={replayOn}
+                scripted={scripted}
+                onText={() => openDraftAtFreeSpot("")}
+                onImage={() => fileRef.current?.click()}
+                onRecordStart={() => void startRecording()}
+                onRecordStop={() => void stopRecording()}
+                onLens={(next) => {
+                  setLens(next);
+                  if (next && coachStep === 2) setCoachStep(3);
+                }}
+                onConn={() => setShowConn((v) => !v)}
+                onConverge={() => setConvergeOn(true)}
+                onReplay={() => {
+                  setReplayOn((v) => !v);
+                  setReplayFrame(null);
+                }}
+              />
             </div>
           </div>
-        </div>
+          {snapshot?.draft ? (
+            <div
+              aria-live="polite"
+              className="fixed bottom-24 left-1/2 z-40 w-[min(17rem,calc(100vw-2rem))] -translate-x-1/2 -rotate-1 rounded-[3px] p-3 text-[0.95rem] leading-snug text-ink shadow-[0_18px_30px_-12px_oklch(30%_0.04_60/0.45)] ring-2 ring-ink/80"
+              style={{ background: stickyColor() }}
+            >
+              {snapshot.draft}
+              <span className="ml-0.5 inline-block h-4 w-px translate-y-0.5 animate-pulse bg-ink" />
+            </div>
+          ) : null}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) openMedia(file, file.name, "image");
+            }}
+          />
+        </>
       ) : null}
 
       {replayOn && state ? (
-        <div className="absolute inset-x-0 bottom-[5.5rem] z-30 flex justify-center px-4">
+        <div className="absolute inset-x-0 bottom-[4.75rem] z-30 flex justify-center px-4">
           <div className="w-[min(40rem,100%)] rounded-2xl border border-rule bg-paper-raised/95 p-2 shadow-[var(--shadow-card)] backdrop-blur">
             <ReplayTimeline
               state={state}
@@ -822,53 +959,32 @@ export function Board({ sessionId: initialId, snapshot }: { sessionId?: string; 
         {convergeOn && state ? (
           <ConvergeDrawer key="converge" state={state} onToggleShortlist={(id, next) => void toggleShortlist(id, next)} onClose={() => setConvergeOn(false)} />
         ) : null}
+        {selectedId && state && !scripted ? (
+          <Inspector
+            key="inspector"
+            ideaId={selectedId}
+            state={state}
+            onClose={() => {
+              setSelectedId(null);
+              setRelatedIds([]);
+              setInspectHover(null);
+            }}
+            onJump={jumpTo}
+            onHoverRelated={setInspectHover}
+            onRelated={setRelatedIds}
+            onShortlist={(id, next) => void toggleShortlist(id, next)}
+            onAssumption={(id) => void markAssumption(id)}
+            onDelete={(id) => void removeIdea(id)}
+          />
+        ) : null}
+        {mediaDraft && sessionId ? (
+          <MediaComposer key="media" draft={mediaDraft} sessionId={sessionId} onPlace={placeMedia} onClose={() => setMediaDraft(null)} />
+        ) : null}
         {assumptionOpen ? <AssumptionWriter key="assume" onSubmit={postAssumption} onClose={() => setAssumptionOpen(false)} /> : null}
       </AnimatePresence>
       <span className="sr-only" aria-live="polite">
         {pending.length ? `${pending.length} idea${pending.length === 1 ? "" : "s"} being placed` : ""}
       </span>
     </div>
-  );
-}
-
-function ViewTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={`flex h-8 items-center rounded-full px-3 text-xs whitespace-nowrap font-medium transition-colors ${active ? "bg-ink text-paper-raised" : "text-ink-soft hover:text-ink"}`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function AxisPick({
-  label,
-  value,
-  axes,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  axes: SessionState["axes"];
-  onChange: (id: string) => void;
-}) {
-  return (
-    <label className="flex items-center gap-1 text-ink-soft">
-      {label}
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="max-w-[9.5rem] overflow-hidden text-ellipsis rounded-md max-sm:max-w-[7.5rem] bg-transparent py-0.5 text-xs font-medium text-ink outline-none focus-visible:ring-2 focus-visible:ring-signal-ink"
-      >
-        {axes.map((a) => (
-          <option key={a.id} value={a.id}>
-            {a.poleA} ↔ {a.poleB}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
