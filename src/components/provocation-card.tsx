@@ -12,6 +12,10 @@ const LABELS: Record<Provocation["type"], string> = {
   duplicate: "Near-duplicates",
   abandoned: "An abandoned outlier",
   unexplored: "An unexplored lens",
+  bridge: "A bridge",
+  voice: "One voice",
+  shortlist: "A lopsided shortlist",
+  assumption: "A shared assumption",
 };
 
 export function ProvocationCard({
