@@ -1,32 +1,11 @@
-import { AiDemo } from "@/components/ai-demo";
-import { getHealth } from "@/lib/health";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-export const dynamic = "force-dynamic";
-
-export default async function Home() {
-  const health = getHealth();
+// Placeholder. OWNER: cursor-cursor (landing + prompt entry, see docs/DESIGN.md).
+export default function Home() {
   return (
-    <main className="mx-auto max-w-xl space-y-6 p-8">
-      <h1 className="text-3xl font-bold">Hackathon starter</h1>
-      <div className="flex gap-2">
-        <Badge variant={health.ok ? "default" : "destructive"}>API</Badge>
-        <Badge variant={health.supabaseConfigured ? "default" : "secondary"}>
-          Supabase
-        </Badge>
-        <Badge variant={health.aiConfigured ? "default" : "secondary"}>
-          Claude
-        </Badge>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Claude demo</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <AiDemo />
-        </CardContent>
-      </Card>
+    <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-4 p-8">
+      <h1 className="text-4xl font-semibold tracking-tight">Blind Spot</h1>
+      <p className="text-muted-foreground">
+        An AI that widens your brainstorm without giving you a single idea.
+      </p>
     </main>
   );
 }
