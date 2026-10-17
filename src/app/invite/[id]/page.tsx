@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureMembership } from "@/lib/supabase/members";
 import { PaperPage } from "@/components/account/paper";
+import { SiteFrame } from "@/components/site/site-frame";
 
 export const metadata: Metadata = { title: "You're invited · Blind Spot" };
 export const dynamic = "force-dynamic";
@@ -28,11 +29,13 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
   if (!board) {
     return (
       <PaperPage>
-        <main className="mx-auto flex min-h-dvh max-w-xl flex-col justify-center px-4 py-16">
-          <h1 className="display text-4xl">This board can&apos;t be found.</h1>
+        <SiteFrame>
+        <main className="mx-auto flex max-w-xl flex-col justify-center px-4 py-16">
+          <h1 className="display font-display text-4xl">This board can&apos;t be found.</h1>
           <p className="mt-3 text-[var(--ink-soft)]">The link may be mistyped, or the board was removed. Ask whoever sent it for a fresh one.</p>
-          <Link href="/" className="acct-btn mt-8 self-start">Start your own board</Link>
+          <Link href="/new" className="acct-btn mt-8 self-start">Start your own board</Link>
         </main>
+        </SiteFrame>
       </PaperPage>
     );
   }
@@ -46,9 +49,10 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
   const next = `/invite/${id}`;
   return (
     <PaperPage>
-      <main className="mx-auto flex min-h-dvh max-w-2xl flex-col justify-center px-4 py-16 sm:px-8">
+      <SiteFrame>
+      <main className="mx-auto flex max-w-2xl flex-col justify-center px-4 py-16 sm:px-8">
         <p className="text-sm uppercase tracking-[0.18em] text-[var(--ink-faint)]">{board.teamName ? `${board.teamName} invited you` : "You've been invited"}</p>
-        <h1 className="display mt-4 text-[clamp(2rem,1.4rem+3vw,3.5rem)] leading-[1.02] tracking-tight">&ldquo;{board.prompt}&rdquo;</h1>
+        <h1 className="display font-display mt-4 text-[clamp(2rem,1.4rem+3vw,3.5rem)] leading-[1.02] tracking-tight">&ldquo;{board.prompt}&rdquo;</h1>
         <p className="mt-5 max-w-lg text-lg text-[var(--ink-soft)]">
           {board.ideaCount > 0
             ? `${board.ideaCount} ${board.ideaCount === 1 ? "sticky is" : "stickies are"} already on the board. Add yours whenever you have a moment — no need to be there at the same time.`
@@ -61,6 +65,7 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
         </div>
         <p className="mt-6 text-sm text-[var(--ink-faint)]">With an account, the board shows up in your boards and tells you what changed since you last looked.</p>
       </main>
+      </SiteFrame>
     </PaperPage>
   );
 }

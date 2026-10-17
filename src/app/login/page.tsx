@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser, safeNext } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AuthForm } from "@/components/account/auth-form";
 import { PaperPage } from "@/components/account/paper";
+import { SiteFrame } from "@/components/site/site-frame";
 
 export const metadata: Metadata = { title: "Sign in · Blind Spot" };
 
@@ -36,10 +36,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
   return (
     <PaperPage>
-      <main className="mx-auto grid min-h-dvh max-w-6xl items-center gap-12 px-4 py-10 sm:px-8 lg:grid-cols-[1.15fr_1fr] lg:gap-20">
+      <SiteFrame>
+      <main className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-10 sm:px-8 lg:grid-cols-[1.15fr_1fr] lg:gap-20">
         <section aria-labelledby="login-heading" className="relative">
-          <Link href="/" className="display text-xl tracking-tight">Blind Spot</Link>
-          <h1 id="login-heading" className="display mt-10 text-[length:var(--text-hero)] leading-[0.95] tracking-tight">
+          <h1 id="login-heading" className="display font-display text-[length:var(--text-hero)] leading-[0.95] tracking-tight">
             Pick up where <em className="text-[var(--signal-ink)]">the room</em> left off.
           </h1>
           <p className="mt-6 max-w-md text-lg text-[var(--ink-soft)]">
@@ -60,6 +60,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <AuthForm next={next} initialMode={mode} invitePrompt={prompt} />
         </section>
       </main>
+      </SiteFrame>
     </PaperPage>
   );
 }
