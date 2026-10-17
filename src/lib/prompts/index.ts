@@ -1,5 +1,4 @@
-// OWNER: Claude prompts subagent. This stub is template-only so the backend can integrate now.
-// The real implementation (LLM + Haiku judge + regex blocklist) keeps these exact exports.
+// OWNER: Claude prompts subagent. LLM + Haiku judge + regex blocklist, with template fallback.
 import type {
   Axis,
   DetectionSignal,
@@ -8,19 +7,18 @@ import type {
   ProposedAxis,
   ProvocationWhy,
 } from "../contract";
+import { DEFAULT_AXES, proposeAxesLLM } from "./axes";
+import { writeProvocationGuarded } from "./provocation";
 import { templateProvocation } from "./templates";
 
-export const DEFAULT_AXES: ProposedAxis[] = [
-  { poleA: "incremental", poleB: "radical" },
-  { poleA: "individual", poleB: "social" },
-  { poleA: "digital", poleB: "physical" },
-  { poleA: "short-term", poleB: "long-term" },
-  { poleA: "low-cost", poleB: "high-investment" },
-];
+export { DEFAULT_AXES };
 
 export async function proposeAxes(prompt: string): Promise<ProposedAxis[]> {
-  void prompt;
-  return DEFAULT_AXES;
+  try {
+    return await proposeAxesLLM(prompt);
+  } catch {
+    return DEFAULT_AXES;
+  }
 }
 
 export async function writeProvocation(
@@ -29,8 +27,12 @@ export async function writeProvocation(
   axes: Axis[],
   prompt: string,
 ): Promise<{ text: string; why: ProvocationWhy }> {
-  void prompt;
-  return templateProvocation(signal, ideas, axes);
+  try {
+    const { text, why } = await writeProvocationGuarded(signal, ideas, axes, prompt);
+    return { text, why };
+  } catch {
+    return templateProvocation(signal, ideas, axes);
+  }
 }
 
 export const prompts: PromptsModule = { proposeAxes, writeProvocation };
