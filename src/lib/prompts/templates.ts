@@ -1,6 +1,7 @@
 // Deterministic fallback questions. Filled only with the user's own idea text and axis names,
 // so they can never contain an AI-suggested idea.
 import type { Axis, DetectionSignal, Idea, ProvocationWhy } from "../contract";
+import { templateExtra } from "../engine/templates-extra";
 
 const quote = (s: string, max = 60): string =>
   `“${s.length > max ? `${s.slice(0, max - 1)}…` : s}”`;
@@ -18,6 +19,16 @@ export function templateProvocation(
   let explanation: string;
 
   switch (signal.type) {
+    case "bridge":
+    case "voice":
+    case "shortlist":
+    case "assumption": {
+      const extra = templateExtra(signal, ideas);
+      if (extra) return extra;
+      text = "What in your own cards led you to this connection or assumption?";
+      explanation = "The referenced cards are no longer available.";
+      break;
+    }
     case "gap": {
       const empty = signal.side === 1 ? axis?.poleB : axis?.poleA;
       const full = signal.side === 1 ? axis?.poleA : axis?.poleB;

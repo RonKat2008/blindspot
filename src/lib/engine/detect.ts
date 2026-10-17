@@ -1,4 +1,7 @@
 // OWNER: codex-codex. Pure, no I/O.
+import { detectAssumption, detectShortlist, detectVoice } from "./thinking-aids.ts";
+import type { ThinkingIdea } from "./thinking-aids.ts";
+export { detectBridge, detectVoice, detectShortlist, detectAssumption } from "./thinking-aids.ts";
 import { cosine } from "./score.ts";
 import type { Axis, DetectionSignal, PatternType } from "../contract";
 
@@ -13,14 +16,15 @@ export const GAP_MAX_IDEAS = 1; // an end with <= this many ideas is a gap
 export const MIN_IDEAS_FOR_DETECTION = 3;
 
 export type DetectInput = {
-  ideas: { id: string; embedding: number[]; axisScores: Record<string, number>; createdAt: string }[];
+  ideas: (ThinkingIdea & { embedding: number[] })[];
   axes: Axis[];
   /** Type of the most recent provocation, for the cooldown. */
   lastType?: PatternType;
 };
 
 /**
- * Compute all candidate signals, then return the strongest, or null.
+ * Check thinking aids on every run (voice, shortlist, assumption priority), then
+ * return the strongest legacy pattern, or null. Kind metadata enables assumption cards.
  * - duplicate: any pair with cos >= DUPLICATE_COS. strength = (cos - 0.9) / 0.1. ideaIds = the pair.
  * - fixation: mean pairwise cos of the last FIXATION_WINDOW ideas >= FIXATION_MEAN_COS.
  *   strength = (mean - 0.8) / 0.2. ideaIds = the window.
@@ -68,6 +72,13 @@ export function detect(input: DetectInput): DetectionSignal | null {
       if (ideas.length >= 5 && reached.length <= GAP_MAX_IDEAS && crowded.length >= 3) candidates.push({ type: "gap", strength: crowded.length / ideas.length, axisId: axis.id, side, ideaIds: crowded.map(i => i.id) });
     }
   }
+  const fixation = candidates.find(c => c.type === "fixation");
+  const assumption = detectAssumption(ideas, fixation);
+  if (assumption && fixation) candidates.splice(candidates.indexOf(fixation), 1);
+  const extra = [detectVoice(ideas, axes), detectShortlist(ideas, axes), assumption].filter((s): s is DetectionSignal => s !== null);
+  // Actionable thinking aids take precedence, with the same per-type cooldown.
+  const aid = extra.find(c => c.type !== lastType);
+  if (aid) return aid;
   const available = candidates.filter(c => c.type !== lastType);
   available.forEach(c => { c.strength = Math.max(0, Math.min(1, c.strength)); });
   available.sort((a, b) => b.strength - a.strength || Number(b.type === "gap") - Number(a.type === "gap"));
