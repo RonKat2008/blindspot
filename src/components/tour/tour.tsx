@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 import { reducedTransition, spring } from "@/lib/motion";
 import { AUTOPLAY_SECONDS, CHAPTERS } from "./chapters";
 import { AutoplayClock } from "./autoplay-clock";
-import { ChapterStage, EndCard } from "./stage";
+import { ChapterVisual } from "./chapter-visual";
+import { ChapterCaption, EndCard } from "./stage";
 
 /** 16 chapters + the end card. */
 const LAST = CHAPTERS.length;
@@ -115,31 +116,35 @@ export function Tour({ initialIndex, initialAutoplay }: Props) {
         )}
       </header>
 
-      <div className="grid min-w-0 flex-1 lg:grid-cols-[17rem_minmax(0,1fr)]">
+      <div className="grid min-w-0 flex-1 lg:grid-cols-[15rem_minmax(0,1fr)]">
         <ChapterRail index={index} onSelect={go} progress={progress} isVideo={isVideo} />
 
-        <main className="flex min-w-0 flex-col px-4 pt-6 pb-4 sm:px-8 lg:px-12 lg:pt-10">
+        <main className="flex min-w-0 flex-col px-4 pt-4 pb-4 sm:px-6 lg:px-8 lg:pt-6">
           {isVideo && (
             <AutoplayClock chapterKey={index} seconds={AUTOPLAY_SECONDS} isPaused={isPaused} onDone={onClockDone} />
           )}
-          <div className="relative min-w-0 flex-1">
-            <AnimatePresence mode="wait" custom={direction} initial={false}>
-              <motion.div
-                key={index}
-                custom={direction}
-                initial={reduce ? { opacity: 0 } : { opacity: 0, x: 32 * direction }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={reduce ? { opacity: 0 } : { opacity: 0, x: -24 * direction }}
-                transition={transition}
-                className="min-w-0"
-              >
-                {index < LAST ? (
-                  <ChapterStage chapter={CHAPTERS[index]} number={index + 1} total={LAST} isVideo={isVideo} />
-                ) : (
-                  <EndCard isVideo={isVideo} onRestart={() => go(0)} />
-                )}
+          <div className="relative min-w-0 flex-1 pt-4">
+            {index < LAST ? (
+              <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_21rem]">
+                <ChapterVisual chapter={CHAPTERS[index]} />
+                <AnimatePresence mode="wait" custom={direction} initial={false}>
+                  <motion.div
+                    key={index}
+                    initial={reduce ? { opacity: 0 } : { opacity: 0, y: 16 * direction }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={reduce ? { opacity: 0 } : { opacity: 0, y: -12 * direction }}
+                    transition={transition}
+                    className="min-w-0"
+                  >
+                    <ChapterCaption chapter={CHAPTERS[index]} number={index + 1} total={LAST} isVideo={isVideo} />
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            ) : (
+              <motion.div initial={reduce ? { opacity: 0 } : { opacity: 0, x: 32 }} animate={{ opacity: 1, x: 0 }} transition={transition}>
+                <EndCard isVideo={isVideo} onRestart={() => go(0)} />
               </motion.div>
-            </AnimatePresence>
+            )}
           </div>
 
           <nav
