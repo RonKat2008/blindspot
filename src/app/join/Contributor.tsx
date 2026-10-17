@@ -194,8 +194,7 @@ export function Contributor({ sessionId, speaker, deviceId }: ContributorProps) 
     setError(null);
     try {
       if (media) {
-        // TODO: confirm per-item media {mediaType, mediaUrl, caption} against
-        // src/lib/contract.ts and POST /api/sessions/[id]/ideas once that shape lands on main.
+        // media[] runs parallel to texts[]; only the first text carries the photo or voice note.
         const res = await fetch(`/api/sessions/${sessionId}/ideas`, {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -204,7 +203,7 @@ export function Contributor({ sessionId, speaker, deviceId }: ContributorProps) 
             source,
             speaker,
             deviceId,
-            media: clean.map((captionText, i) => (i === 0 ? { ...media, caption: captionText } : undefined)).filter(Boolean),
+            media: clean.map((captionText, i) => (i === 0 ? { ...media, caption: captionText } : null)),
           }),
         });
         const data = (await res.json().catch(() => ({}))) as { error?: string };
