@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { detect, detectAssumption, detectBridge, detectShortlist, detectVoice } from "./detect.ts";
-import { templateExtra } from "./templates-extra.ts";
+import { quoteFragment, templateExtra } from "./templates-extra.ts";
 import type { Idea, DetectionSignal } from "../contract";
 
 const axis = { id: "axis", poleA: "a", poleB: "b", position: 0, userEdited: false };
@@ -68,16 +68,22 @@ test("bridge ignores direction of AI edges and rejects self links", () => {
   assert.equal(detectBridge(idea(0), idea(1), [])?.type, "bridge");
 });
 
-test("extra templates quote human text and remain questions of at most 22 words", () => {
+test("extra templates quote full short ideas and cut longer ones on a word boundary", () => {
   const ideas = [idea(0), idea(1)];
-  ideas[0].text = "our many user supplied words that should never make a template too long";
+  ideas[0].text = "Bike share for";
+  ideas[1].text = "our many user supplied words that should never make a template too long for a quote";
+  const fragment = quoteFragment(ideas[1].text);
+  assert.ok(fragment.endsWith("…"));
+  assert.equal(ideas[1].text.startsWith(fragment.slice(0, -1)), true);
+  assert.equal(ideas[1].text[fragment.length - 1], " ");
   for (const type of ["bridge", "voice", "shortlist", "assumption"] as const) {
     const signal: DetectionSignal = { type, strength: 1, ideaIds: ideas.map(i => i.id) };
     for (const kind of ["idea", "assumption"] as const) {
       const result = templateExtra(signal, ideas.map(i => ({ ...i, kind })))!;
       assert.ok(result.text.endsWith("?"));
-      assert.ok(result.text.split(/\s+/u).length <= 22, result.text);
-      assert.ok(result.text.includes("“our many user”"));
+      assert.ok(result.text.includes("“Bike share for”"), result.text);
+      if (type === "bridge") assert.ok(result.text.includes(`“${fragment}”`), result.text);
+      assert.equal(result.text.includes("“our many user”"), false);
       assert.deepEqual(result.why.ideaIds, signal.ideaIds);
     }
   }

@@ -42,7 +42,7 @@ export async function GET(): Promise<Response> {
 
     const [axes, ideas, provocations] = await Promise.all([
       client.from("axes").select("id, session_id, pole_a, pole_b, position").in("session_id", recent),
-      client.from("ideas").select("session_id, author_id, axis_scores").in("session_id", recent),
+      client.from("ideas").select("session_id, author_id, axis_scores").in("session_id", recent).is("deleted_at", null),
       client.from("provocations").select("session_id, status").in("session_id", recent),
     ]);
     check(axes.error);

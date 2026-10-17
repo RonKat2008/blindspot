@@ -48,3 +48,46 @@ test("API core loop persists ideas, question acceptance, and board positions; AI
     };
   }).toEqual({ status: "accepted", board });
 });
+
+test("soft delete hides the idea from session state", async ({ request }) => {
+  const { sessionId } = await createSession(request);
+  const added = await checkedJson<AddIdeasResponse>(await request.post(`/api/sessions/${sessionId}/ideas`, {
+    data: { texts: ["Keep this sticky", "Remove this sticky"], source: "typed" },
+    timeout: 60_000,
+  }));
+  const removed = added.ideas.find(i => i.text === "Remove this sticky");
+  expect(removed).toBeTruthy();
+  await checkedJson(await request.delete(`/api/ideas/${removed!.id}`));
+  const current = await state(request, sessionId);
+  expect(current.ideas.map(i => i.id)).not.toContain(removed!.id);
+  expect(current.ideas.map(i => i.text)).toEqual(["Keep this sticky"]);
+  const missing = await request.delete(`/api/ideas/${removed!.id}`);
+  expect(missing.status()).toBe(404);
+});
+
+test("bridge question quotes ideas without a mid-word cut", async ({ request }) => {
+  const { sessionId } = await createSession(request);
+  const shortText = "Bike share for";
+  const longText = "Neighborhood tool library sharing drills saws and clamps with neighbors every Saturday morning";
+  const added = await checkedJson<AddIdeasResponse>(await request.post(`/api/sessions/${sessionId}/ideas`, {
+    data: { texts: [shortText, longText], source: "typed" },
+    timeout: 60_000,
+  }));
+  const a = added.ideas.find(i => i.text === shortText)!;
+  const b = added.ideas.find(i => i.text === longText)!;
+  const bridged = await checkedJson<{ provocation: { text: string } | null }>(await request.post("/api/provocations/bridge", {
+    data: { sessionId, a: a.id, b: b.id },
+  }));
+  expect(bridged.provocation).toBeTruthy();
+  const text = bridged.provocation!.text;
+  expect(text).toContain(`“${shortText}”`);
+  const quoted = [...text.matchAll(/“([^”]+)”/g)].map(match => match[1]);
+  expect(quoted.length).toBeGreaterThanOrEqual(2);
+  for (const piece of quoted) {
+    const source = piece.endsWith("…") ? piece.slice(0, -1) : piece;
+    const idea = piece === shortText ? shortText : longText;
+    expect(idea.startsWith(source)).toBe(true);
+    const next = idea[source.length];
+    expect(next === undefined || next === " ").toBe(true);
+  }
+});
