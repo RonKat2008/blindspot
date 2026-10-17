@@ -21,7 +21,7 @@ export const PATTERN_TYPES: readonly PatternType[] = [
 
 export type IdeaSource = "typed" | "voice" | "photo";
 /** What a point is made of. Text points have no media fields. */
-export type MediaType = "text" | "image" | "audio";
+export type MediaType = "text" | "image" | "audio" | "link";
 export type ProvocationStatus = "shown" | "accepted" | "dismissed";
 export type DeviceRole = "contributor" | "ambient";
 
@@ -57,9 +57,9 @@ export type Idea = {
   color?: string;
   /** Absent or "text" for plain ideas. */
   mediaType?: MediaType;
-  /** Public URL in the idea-media bucket (image or audio). */
+  /** Public URL in the idea-media bucket (image/audio), or an https evidence link. */
   mediaUrl?: string;
-  /** AI description of an image, or the transcript of a voice note. Never an idea. */
+  /** Image description, voice transcript, or link title and snippet. Never an idea. */
   mediaCaption?: string;
   createdAt: string; // ISO
 };
@@ -162,10 +162,10 @@ export const UpdateIdeaBody = z.object({
 
 export const MEDIA_CAPTION_MAX = 400;
 export const IdeaMediaInput = z.object({
-  mediaType: z.enum(["image", "audio"]),
+  mediaType: z.enum(["image", "audio", "link"]),
   mediaUrl: z.url().max(1000),
   caption: z.string().trim().max(MEDIA_CAPTION_MAX).optional(),
-});
+}).refine(value => value.mediaType !== "link" || (value.mediaUrl.startsWith("https://") && Boolean(value.caption)), { message: "Links need an https URL and a caption" });
 export type IdeaMediaInput = z.infer<typeof IdeaMediaInput>;
 
 export const AddIdeasBody = z.object({
@@ -218,6 +218,16 @@ export type RealityBody = z.infer<typeof RealityBody>;
 export type RealityResponse = { queries: string[]; resultCounts: number[] };
 
 export type ErrorResponse = { error: string };
+
+export const ContextBody = z.object({
+  sessionId: z.uuid(),
+  ideaId: z.uuid().optional(),
+  query: z.string().trim().min(3).max(1000).optional(),
+}).refine(value => Boolean(value.ideaId || value.query), { message: "Provide ideaId or query" });
+export type ContextBody = z.infer<typeof ContextBody>;
+export type ContextResult = { title: string; url: string; snippet: string; publishedDate?: string; favicon?: string };
+export type ContextResponse = { query: string; results: ContextResult[] };
+export type SandboxResponse = { sessionId: string };
 
 // ---------- Media points ----------
 // POST /api/media/upload    multipart {file, sessionId}  -> MediaUploadResponse
