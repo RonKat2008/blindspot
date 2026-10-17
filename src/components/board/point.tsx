@@ -18,6 +18,8 @@ type PointProps = {
   from?: { x: number; y: number };
   media?: PointMedia;
   compact?: boolean;
+  /** Put the label on the left of the dot (near the right edge). */
+  flip?: boolean;
   isPending?: boolean;
   isSelected?: boolean;
   isLit?: boolean;
@@ -49,6 +51,7 @@ export function Point(p: PointProps) {
       aria-pressed={p.isSelected}
       className={cn(
         "group absolute top-0 left-0 z-[4] flex items-start gap-2 outline-none select-none",
+        p.flip && "flex-row-reverse",
         p.canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
         "hover:z-[12] focus-visible:z-[12]",
         p.isSelected && "z-[14]",
@@ -87,7 +90,8 @@ export function Point(p: PointProps) {
       <Marker {...p} />
       <span
         className={cn(
-          "mt-[-3px] max-w-[11.5rem] rounded px-1 text-[13px] leading-snug text-ink transition-colors",
+          "mt-[-3px] max-w-[11.5rem] rounded px-1 text-[13px] leading-snug text-ink transition-colors max-sm:max-w-[9.5rem] max-sm:text-[12.5px]",
+          p.flip && "absolute top-0 right-[14px] w-max text-right",
           p.compact ? "line-clamp-2 max-w-[8.5rem] text-[11.5px]" : "line-clamp-3",
           "group-hover:bg-paper/90 group-focus-visible:bg-paper/90",
           p.isSelected && "bg-paper/95 font-medium",

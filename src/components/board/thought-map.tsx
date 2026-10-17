@@ -24,8 +24,14 @@ type Lens = { box: PlotBox; xAxis: Axis; yAxis: Axis; occupied: Set<QuadKey>; qu
 
 /** Space kept clear for the bottom input bar and the right-hand question note. */
 function boundsFor(w: number, h: number, noteOpen: boolean) {
-  const right = w - (w < 640 ? 150 : 210) - (noteOpen && w >= 1024 ? 380 : 0);
+  const right = w - (w < 640 ? 24 : 64) - (noteOpen && w >= 1024 ? 380 : 0);
   return { left: w < 640 ? 24 : 56, top: 48, right: Math.max(160, right), bottom: Math.max(140, h - (w < 640 ? 150 : 120)) };
+}
+
+/** Labels flip to the left of the dot when they would run off the right edge. */
+function shouldFlip(x: number, w: number, compact: boolean): boolean {
+  const label = w < 640 ? 160 : compact ? 150 : 200;
+  return x + label > w - 8;
 }
 
 export function ThoughtMap({
@@ -155,6 +161,7 @@ export function ThoughtMap({
             from={item.isFresh ? from : undefined}
             media={item.media}
             compact={Boolean(lens)}
+            flip={shouldFlip(pos.x, size.w, Boolean(lens))}
             isPending={item.isPending}
             isSelected={selectedId === item.id}
             isLit={lit && selectedId !== item.id}
