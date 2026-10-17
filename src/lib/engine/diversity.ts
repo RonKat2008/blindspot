@@ -1,4 +1,5 @@
 // OWNER: codex-codex. Pure, no I/O.
+import { cosine } from "./score.ts";
 import type { DiversityBreakdown } from "../contract";
 
 /** Calibration range for mean pairwise cosine distance (from the seed set; tune at 3:10). */
@@ -20,8 +21,15 @@ export function diversity(
   axisScores: Record<string, number>[],
   axisIds: string[],
 ): { diversity: number; breakdown: DiversityBreakdown } {
-  void embeddings;
-  void axisScores;
-  void axisIds;
-  throw new Error("not implemented");
+  let total = 0, pairs = 0;
+  for (let i = 0; i < embeddings.length; i++) for (let j = i + 1; j < embeddings.length; j++) {
+    total += 1 - cosine(embeddings[i], embeddings[j]); pairs++;
+  }
+  const spread = pairs ? Math.max(0, Math.min(1, (total / pairs - SPREAD_MIN) / (SPREAD_MAX - SPREAD_MIN))) : 0;
+  let ends = 0;
+  for (const id of axisIds) for (const side of [-1, 1]) {
+    if (axisScores.filter(s => (s[id] ?? 0) * side > COVERAGE_THRESHOLD).length >= COVERAGE_MIN_IDEAS) ends++;
+  }
+  const coverage = axisIds.length ? ends / (2 * axisIds.length) : 0;
+  return { diversity: Math.round(100 * (SPREAD_WEIGHT * spread + COVERAGE_WEIGHT * coverage)), breakdown: { spread, coverage } };
 }

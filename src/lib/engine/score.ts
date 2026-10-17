@@ -5,28 +5,32 @@ import type { Axis } from "../contract";
 export type Vec = number[];
 export type AxisWithEmbeddings = Axis & { poleAEmbedding: Vec; poleBEmbedding: Vec };
 
-/** Clip bound for normalized scores. */
+/** Clip bound for independent axis scores. */
 export const SCORE_CLIP = 1;
+export const SCORE_SCALE = 0.08;
 
 export function cosine(a: Vec, b: Vec): number {
-  void a;
-  void b;
-  throw new Error("not implemented");
+  if (a.length !== b.length) throw new Error("Vector dimensions differ");
+  let dot = 0, aa = 0, bb = 0;
+  for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; aa += a[i] ** 2; bb += b[i] ** 2; }
+  return aa && bb ? Math.max(-1, Math.min(1, dot / Math.sqrt(aa * bb))) : 0;
 }
 
-/**
- * Score every idea on every axis.
- * 1. raw(e, axis) = cos(e, poleB) - cos(e, poleA)   (so + leans poleB, - leans poleA)
- * 2. Per axis, z-normalize the raw values across ALL ideas in the session
- *    (z = (raw - mean) / std; if std < 1e-6 or n < 3 use raw * 10 as the fallback scale).
- * 3. Scale z by 1/2 (so ±2σ → ±1) and clip to [-1, 1].
- * Returns one Record<axisId, score> per input embedding, same order.
- */
+/** Score one idea against bare-word pole embeddings, independently of other ideas. */
+export function scoreIdea(
+  embedding: Vec,
+  axes: AxisWithEmbeddings[],
+): Record<string, number> {
+  return Object.fromEntries(axes.map(axis => {
+    const raw = cosine(embedding, axis.poleBEmbedding) - cosine(embedding, axis.poleAEmbedding);
+    return [axis.id, Math.max(-SCORE_CLIP, Math.min(SCORE_CLIP, raw / SCORE_SCALE))];
+  }));
+}
+
+/** Returns scores in input order; adding ideas never changes existing scores. */
 export function scoreIdeas(
   embeddings: Vec[],
   axes: AxisWithEmbeddings[],
 ): Record<string, number>[] {
-  void embeddings;
-  void axes;
-  throw new Error("not implemented");
+  return embeddings.map(embedding => scoreIdea(embedding, axes));
 }
