@@ -18,9 +18,10 @@ type InspectorProps = {
   onShortlist: (id: string, next: boolean) => void;
   onAssumption: (id: string) => void;
   onDelete: (id: string) => void;
+  onConnect: (id: string) => void;
 };
 
-export function Inspector({ ideaId, state, onClose, onJump, onHoverRelated, onRelated, onShortlist, onAssumption, onDelete }: InspectorProps) {
+export function Inspector({ ideaId, state, onClose, onJump, onHoverRelated, onRelated, onShortlist, onAssumption, onDelete, onConnect }: InspectorProps) {
   const reduce = useReducedMotion();
   const idea = state.ideas.find((i) => i.id === ideaId) as (MediaIdea & AuthoredIdea) | undefined;
   const [related, setRelated] = useState<Related>(() => localRelated(ideaId, state));
@@ -129,6 +130,9 @@ export function Inspector({ ideaId, state, onClose, onJump, onHoverRelated, onRe
         ) : null}
 
         <section className="flex flex-wrap gap-2 border-t border-rule pt-4">
+          <Button type="button" className="h-9" onClick={() => onConnect(idea.id)} title="Then click another point. Tip: shift+click also connects.">
+            Connect to…
+          </Button>
           <Button type="button" variant="outline" className="h-9" onClick={() => onShortlist(idea.id, !idea.shortlisted)}>
             {idea.shortlisted ? "★ Shortlisted" : "☆ Shortlist"}
           </Button>
