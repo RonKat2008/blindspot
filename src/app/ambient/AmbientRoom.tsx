@@ -72,20 +72,26 @@ export function AmbientRoom({ sessionId }: AmbientRoomProps) {
         transition={{ duration: BREATH_S, ease: "easeInOut", repeat: Infinity }}
       />
 
-      <div className="flex h-full flex-col items-center justify-center px-[7vw] text-center">
+      <div className="flex h-full flex-col items-center justify-center px-[6vw] text-center">
         <AnimatePresence mode="wait">
           {current ? (
-            <motion.p
+            <motion.article
               key={current.id}
-              initial={{ opacity: 0, y: reduced ? 0 : 24 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, y: reduced ? 0 : 24, rotate: reduced ? 0 : -2 }}
+              animate={{ opacity: 1, y: 0, rotate: reduced ? 0 : -0.6 }}
               exit={{ opacity: 0, y: reduced ? 0 : -16 }}
               transition={{ duration: reduced ? 0.12 : 1.1, ease: ease.outExpo }}
-              className="max-w-[18ch] text-balance italic leading-[1.08] [text-shadow:0_2px_40px_oklch(10%_0.03_60/0.35)] md:max-w-[22ch]"
-              style={{ fontFamily: SERIF, fontSize: "clamp(2.5rem, 1rem + 6.4vw, 7.5rem)" }}
+              className="max-w-[20ch] rounded-sm px-[4vw] py-[3.5vh] shadow-[8px_12px_0_oklch(12%_0.04_255/0.22)] md:max-w-[24ch]"
+              style={{ background: "oklch(91% 0.04 250)", color: "oklch(28% 0.07 255)" }}
             >
-              {current.text}
-            </motion.p>
+              <p className="text-[0.7rem] uppercase tracking-[0.22em] opacity-70">A question for the room</p>
+              <p
+                className="mt-[1.5vh] text-balance italic leading-[1.08]"
+                style={{ fontFamily: SERIF, fontSize: "clamp(2.4rem, 0.8rem + 5.6vw, 6.75rem)" }}
+              >
+                {current.text}
+              </p>
+            </motion.article>
           ) : (
             <motion.p
               key="idle"
@@ -102,7 +108,7 @@ export function AmbientRoom({ sessionId }: AmbientRoomProps) {
         </AnimatePresence>
       </div>
 
-      <footer className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-6 px-[4vw] pb-[3vh] text-[0.8rem] opacity-70">
+      <footer className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-6 px-[3vw] pb-[2vh] text-[0.72rem] tracking-wide opacity-60">
         <span className="max-w-[60%] truncate">{state?.session.prompt ?? ""}</span>
         <span className="tabular-nums tracking-[0.16em] uppercase">
           Range {state ? state.diversity : "--"}

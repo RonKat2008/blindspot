@@ -5,7 +5,7 @@ import { useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { api } from "@/lib/api-client";
 import { Contributor } from "./Contributor";
-import { notebookVars, SERIF } from "./theme";
+import { boardSurface, notebookVars, SERIF } from "./theme";
 
 type Step = "welcome" | "role" | "contribute";
 
@@ -47,7 +47,7 @@ export function JoinFlow({ sessionId }: JoinFlowProps) {
 
   return (
     <main
-      style={{ ...notebookVars, background: "var(--paper)", color: "var(--ink)" }}
+      style={{ ...notebookVars, ...boardSurface, color: "var(--ink)" }}
       className="min-h-dvh w-full font-sans"
     >
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-6 pb-8 pt-10">
@@ -57,18 +57,18 @@ export function JoinFlow({ sessionId }: JoinFlowProps) {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-1 flex-col"
           >
-            <p className="text-xs uppercase tracking-[0.18em]" style={{ color: "var(--signal-ink)" }}>
-              Blind Spot
+            <p className="text-xs uppercase tracking-[0.18em]" style={{ color: "var(--ink-faint)" }}>
+              Pocket whiteboard
             </p>
             <h1
               className="mt-4 text-[2.6rem] font-semibold leading-[1.05]"
               style={{ fontFamily: SERIF }}
             >
-              You&rsquo;re joining a brainstorm.
+              Pull up a sticky.
             </h1>
             <p className="mt-4 text-base" style={{ color: "var(--ink-soft)" }}>
-              Add ideas from your phone. They land on the shared map, and the room gets a question
-              whenever it&rsquo;s circling one spot.
+              Your notes land on the shared board. When the room is circling one spot, a blue
+              question note shows up here.
             </p>
             <label className="mt-10 block text-sm font-medium" htmlFor="join-name">
               What should we call you?
@@ -104,7 +104,7 @@ export function JoinFlow({ sessionId }: JoinFlowProps) {
             <div className="mt-8 flex flex-col gap-4">
               <RoleCard
                 title="Add ideas"
-                body="Snap a photo of sticky notes or type ideas straight from your phone."
+                body="Photograph real stickies, or type one. Either way it sticks to the board."
                 disabled={busy}
                 onClick={() => void choose("contributor")}
               />
@@ -152,8 +152,8 @@ function RoleCard(props: { title: string; body: string; disabled: boolean; onCli
       whileTap={{ scale: 0.98 }}
       disabled={props.disabled}
       onClick={props.onClick}
-      className="rounded-2xl border p-5 text-left disabled:opacity-60"
-      style={{ background: "var(--paper-raised)", borderColor: "var(--rule)" }}
+      className="min-h-[5.5rem] rounded-sm p-5 text-left shadow-[2px_3px_0_oklch(22%_0.02_60/0.08)] disabled:opacity-60"
+      style={{ background: "var(--sticky)" }}
     >
       <span className="block text-xl font-semibold" style={{ fontFamily: SERIF }}>
         {props.title}

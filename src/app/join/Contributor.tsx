@@ -15,7 +15,7 @@ interface ContributorProps {
 }
 
 const POLL_MS = 1500;
-const VIBRATE_MS = 200;
+const VIBRATE_PATTERN = [28, 50, 28];
 const SENT_BANNER_MS = 2500;
 
 interface Chip {
@@ -53,7 +53,7 @@ export function Contributor({ sessionId, speaker, deviceId }: ContributorProps) 
     }
     if (current && !seenIds.current.has(current.id)) {
       seenIds.current.add(current.id);
-      if (typeof navigator !== "undefined") navigator.vibrate?.(VIBRATE_MS);
+      if (typeof navigator !== "undefined") navigator.vibrate?.(VIBRATE_PATTERN);
     }
   }, [state, current]);
 
@@ -117,9 +117,15 @@ export function Contributor({ sessionId, speaker, deviceId }: ContributorProps) 
   return (
     <div className="flex flex-1 flex-col gap-6">
       <header>
-        <p className="text-xs uppercase tracking-[0.18em]" style={{ color: "var(--ink-faint)" }}>
-          {state ? state.session.prompt : "Connecting…"}
+        <p className="text-[0.7rem] uppercase tracking-[0.18em]" style={{ color: "var(--ink-faint)" }}>
+          The question
         </p>
+        <h1
+          className="mt-2 text-[1.65rem] font-semibold leading-snug"
+          style={{ fontFamily: SERIF }}
+        >
+          {state ? state.session.prompt : "Connecting to the board…"}
+        </h1>
         {failed && (
           <p className="mt-1 text-xs" style={{ color: "var(--signal-ink)" }}>
             Lost the room for a moment. Reconnecting…
@@ -134,19 +140,11 @@ export function Contributor({ sessionId, speaker, deviceId }: ContributorProps) 
             initial={{ opacity: 0, y: -16, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0 }}
-            className="rounded-[20px] p-5"
-            style={{
-              background: "var(--signal-wash)",
-              boxShadow: "0 1px 0 var(--rule), 0 12px 32px -12px oklch(30% 0.04 60 / 0.18)",
-            }}
+            className="relative -rotate-1 rounded-sm p-5 shadow-[3px_4px_0_oklch(22%_0.04_255/0.12)]"
+            style={{ background: "var(--note)", color: "var(--note-ink)" }}
           >
-            <p className="text-[0.7rem] uppercase tracking-[0.18em]" style={{ color: "var(--signal-ink)" }}>
-              A question for the room
-            </p>
-            <p
-              className="mt-2 text-[1.45rem] italic leading-snug"
-              style={{ fontFamily: SERIF, color: "var(--signal-ink)" }}
-            >
+            <p className="text-[0.7rem] uppercase tracking-[0.18em]">A question for the room</p>
+            <p className="mt-2 text-[1.45rem] italic leading-snug" style={{ fontFamily: SERIF }}>
               {current.text}
             </p>
           </motion.aside>
@@ -169,7 +167,7 @@ export function Contributor({ sessionId, speaker, deviceId }: ContributorProps) 
             whileTap={{ scale: 0.97 }}
             disabled={busy !== null}
             onClick={() => fileRef.current?.click()}
-            className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-[20px] px-6 py-8 text-center disabled:opacity-70"
+            className="flex min-h-44 flex-col items-center justify-center gap-2 rounded-sm px-6 py-8 text-center shadow-[3px_4px_0_oklch(22%_0.02_60/0.12)] disabled:opacity-70"
             style={{ background: "var(--ink)", color: "var(--paper)" }}
           >
             <CameraIcon />
@@ -182,28 +180,37 @@ export function Contributor({ sessionId, speaker, deviceId }: ContributorProps) 
           </motion.button>
 
           <form onSubmit={submitTyped} className="flex flex-col gap-2">
-            <label htmlFor="typed-idea" className="text-sm font-medium">
-              Or type one
+            <label htmlFor="typed-idea" className="sr-only">
+              Type a sticky note
             </label>
-            <div className="flex gap-2">
-              <input
+            <div
+              className="flex rotate-1 items-end gap-2 rounded-sm p-3 shadow-[2px_3px_0_oklch(22%_0.02_60/0.1)]"
+              style={{ background: "var(--sticky)" }}
+            >
+              <textarea
                 id="typed-idea"
                 value={typed}
+                rows={3}
                 maxLength={IDEA_TEXT_MAX}
                 onChange={(e) => setTyped(e.target.value)}
-                placeholder="Add an idea, anything goes"
+                placeholder="Write a sticky…"
                 enterKeyHint="send"
-                className="min-w-0 flex-1 rounded-xl border px-4 py-3.5 text-base outline-none"
-                style={{ background: "var(--paper-raised)", borderColor: "var(--rule)" }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    e.currentTarget.form?.requestSubmit();
+                  }
+                }}
+                className="min-h-24 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-lg outline-none placeholder:text-[oklch(45%_0.04_90)]"
               />
               <motion.button
                 type="submit"
                 whileTap={{ scale: 0.97 }}
                 disabled={busy !== null || !typed.trim()}
-                className="rounded-xl px-5 text-base font-medium disabled:opacity-40"
+                className="mb-1 min-h-12 shrink-0 rounded-sm px-5 text-base font-medium disabled:opacity-40"
                 style={{ background: "var(--ink)", color: "var(--paper)" }}
               >
-                Add
+                Stick it
               </motion.button>
             </div>
           </form>
@@ -225,8 +232,11 @@ export function Contributor({ sessionId, speaker, deviceId }: ContributorProps) 
                   initial={{ opacity: 0, scale: 0.96 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.96 }}
-                  className="flex items-start gap-2 rounded-xl border p-2"
-                  style={{ background: "var(--paper-raised)", borderColor: "var(--rule)" }}
+                  className="flex items-start gap-2 rounded-sm p-2 shadow-[2px_3px_0_oklch(22%_0.02_60/0.1)]"
+                  style={{
+                    background: "var(--sticky)",
+                    rotate: chip.key % 2 === 0 ? "-1.2deg" : "1.4deg",
+                  }}
                 >
                   <textarea
                     value={chip.text}
@@ -240,7 +250,7 @@ export function Contributor({ sessionId, speaker, deviceId }: ContributorProps) 
                     type="button"
                     aria-label="Remove this idea"
                     onClick={() => removeChip(chip.key)}
-                    className="h-9 w-9 shrink-0 rounded-lg text-xl"
+                    className="h-11 w-11 shrink-0 text-2xl"
                     style={{ color: "var(--ink-soft)" }}
                   >
                     ×
@@ -254,7 +264,7 @@ export function Contributor({ sessionId, speaker, deviceId }: ContributorProps) 
             whileTap={{ scale: 0.97 }}
             disabled={busy !== null || validChips.length === 0}
             onClick={() => void submitChips()}
-            className="mt-2 w-full rounded-xl px-6 py-4 text-lg font-medium disabled:opacity-40"
+            className="mt-2 min-h-14 w-full rounded-sm px-6 py-4 text-lg font-medium disabled:opacity-40"
             style={{ background: "var(--ink)", color: "var(--paper)" }}
           >
             {busy === "sending"
@@ -280,7 +290,7 @@ export function Contributor({ sessionId, speaker, deviceId }: ContributorProps) 
         )}
         {!error && sent !== null && (
           <p style={{ color: "var(--ink-soft)" }}>
-            Added {sent} {sent === 1 ? "idea" : "ideas"} to the map.
+            Stuck {sent} {sent === 1 ? "note" : "notes"} on the board.
           </p>
         )}
       </div>
