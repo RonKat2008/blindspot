@@ -103,7 +103,7 @@ export function FallbackStage({ snapshot }: { snapshot: DemoSnapshot }) {
               <span className="ml-0.5 inline-block h-5 w-px animate-pulse bg-foreground align-middle" />
             </span>
           ) : (
-            <span className="text-muted-foreground">Add a sticky and press Enter</span>
+            <span className="text-muted-foreground">Add a thought and press Enter</span>
           )}
         </div>
       </div>

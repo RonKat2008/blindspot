@@ -38,14 +38,17 @@ async function setView(d: Director, view: "board" | "lens"): Promise<void> {
 }
 
 async function addText(d: Director, say: (c: string) => void, text: string): Promise<boolean> {
-  const add = $('[data-tour="add-sticky"]');
-  if (!add) return false;
-  add.click();
-  const box = await d.waitFor(() => textareaBy('textarea[aria-label="New idea"]'), 4000);
+  // The board's one input bar: <form data-tour="add-sticky"><input id="bs-thought" /></form>.
+  const box = await d.waitFor(() => {
+    const el = document.querySelector<HTMLInputElement>("#bs-thought");
+    return el && !el.disabled ? el : null;
+  }, 8000);
   if (!box) return false;
   await d.type(box, text, 38);
   await d.sleep(250);
-  pressEnter(box);
+  const form = box.closest("form");
+  if (form) form.requestSubmit();
+  else pressEnter(box);
   const landed = await d.waitFor(() => stickyWithText(text), 20_000);
   if (!landed) say(MISSED);
   return Boolean(landed);

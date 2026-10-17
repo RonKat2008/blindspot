@@ -169,7 +169,7 @@ function buildSteps(): TourStep[] {
     {
       id: "board",
       caption: "This is a team’s brainstorm: “How might we improve onboarding for new users?”",
-      detail: "Every sticky is an idea a human typed.",
+      detail: "Every point is an idea a human added.",
       durationMs: 10_000,
       keyframes: [
         { at: 0, patch: set({ focus: ["board"], view: "board" }) },
@@ -185,7 +185,7 @@ function buildSteps(): TourStep[] {
     },
     {
       id: "flip",
-      caption: "Flip to the Lens view: every sticky lands on the map.",
+      caption: "Flip to the Lens view: every point lands on two lenses.",
       detail: `Range: ${RANGE_START}. The team feels productive, but they’re circling one corner.`,
       durationMs: 12_000,
       keyframes: [
@@ -228,7 +228,7 @@ function buildSteps(): TourStep[] {
     {
       id: "gap",
       caption: "The human fills the gap.",
-      detail: "The new sticky lands in the empty radical / social corner. That’s the whole point.",
+      detail: "The new point lands in the empty radical / social corner. That’s the whole point.",
       durationMs: 16_000,
       keyframes: [
         {
